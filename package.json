@@ -4,7 +4,8 @@
   "description": "",
   "scripts": {
     "dev": "nodemon src/Server.ts",
-    "start": "ts-node src/Server.ts",
+    "build": "tsc",
+    "start": "node dist/Server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
