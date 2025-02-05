@@ -5,7 +5,8 @@
   "main": "dist/Server.js",
   "scripts": {
     "dev": "nodemon src/Server.ts",
-    "build": "tsc",
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc",
     "start": "node dist/Server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
