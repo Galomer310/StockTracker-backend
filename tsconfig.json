@@ -6,7 +6,7 @@
     "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
-    "types": ["node", "pg", "dotenv", "axios", "express"]
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src"]
 }

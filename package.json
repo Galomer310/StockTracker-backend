@@ -9,9 +9,6 @@
     "start": "node dist/Server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
