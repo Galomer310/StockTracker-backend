@@ -4,7 +4,7 @@
   "description": "Backend service for StockTracker",
   "main": "dist/Server.js",
   "scripts": {
-    "dev": "nodemon src/Server.ts",
+    "dev": "nodemon src/server.ts",
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc",
     "start": "node dist/Server.js",
