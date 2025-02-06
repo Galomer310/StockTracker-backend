@@ -1,4 +1,3 @@
-// backend/src/controllers/watchlistController.ts
 import { Request, Response, NextFunction, RequestHandler } from "express";
 import pool from "../config/db";
 import axios from "axios";
