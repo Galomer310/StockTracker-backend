@@ -1,32 +1,34 @@
-import { Request } from "express";
+import { Request } from "express";             // Import the Express Request type
 
-// Define user registration request body type
+// Define type for user registration request body
 export interface RegisterRequestBody {
-  email: string;
-  password: string;
+  email: string;                              // User's email address
+  password: string;                           // User's password
 }
 
-// Define user login request body type
+// Define type for user login request body
 export interface LoginRequestBody {
-  email: string;
-  password: string;
+  email: string;                              // User's email address
+  password: string;                           // User's password
 }
 
-// Extend Express Request type to include typed body
+// Extend the Express Request type to include a typed body
 export interface TypedRequest<T> extends Request {
-  body: T;
+  body: T;                                    // Body of the request should conform to type T
 }
 
-// JWT Payload Type
+// JWT Payload Type: defines the structure of the token payload
 export interface JwtPayload {
-  userId: number;
+  userId: number;                             // The user id contained in the token
 }
 
+// User type: represents a user object in the system
 export interface User {
-  id: number;
-  email: string;
+  id: number;                                 // Unique identifier for the user
+  email: string;                              // User's email address
 }
 
+// AuthRequest type: extends Express Request to optionally include a user object (set by auth middleware)
 export interface AuthRequest extends Request {
   user?: User;
 }
