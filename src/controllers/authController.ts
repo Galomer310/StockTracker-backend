@@ -1,8 +1,9 @@
 import { Request, Response } from "express";   // Import Request and Response types from Express
 import pool from "../config/db";                 // Import the PostgreSQL pool from the config
 import bcrypt from "bcryptjs";                   // Import bcryptjs for hashing passwords
-import { generateAccessToken } from "../utils/jwt"; // Import utility function to generate JWT tokens
-import { TypedRequest, RegisterRequestBody, LoginRequestBody } from "../types/types";
+import { generateAccessToken, generateRefreshToken } from "../utils/jwt"; // Import utility function to generate JWT tokens
+import jwt from "jsonwebtoken"; // Import jsonwebtoken library
+import { TypedRequest, RegisterRequestBody, LoginRequestBody, JwtPayload, RefreshTokenRequestBody } from "../types/types";
 // ^-- Import custom types for typed requests and request bodies
 
 // REGISTER CONTROLLER
@@ -63,18 +64,42 @@ export const login = async (
     
     // Generate an access token for the authenticated user
     const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id); // Generate a refresh token for the user
     
-    // Send a successful response with the token and user information
-    return res.json({
-      message: "Login successful",
-      accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-      },
-    });
+// Send a successful response with both tokens and user info
+return res.json({
+  message: "Login successful",
+  accessToken,
+  refreshToken,  // Include the refresh token in the response
+  user: {
+    id: user.id,
+    email: user.email,
+  },
+});
   } catch (error) {
     console.error("Error:", error);            // Log errors to the console
     return res.status(500).json({ error: "Server error" }); // Send a 500 error response if something goes wrong
+  }
+};
+
+
+
+export const refreshToken = async (req: Request, res: Response) => {
+  // Extract refreshToken from request body
+  const { refreshToken } = req.body as RefreshTokenRequestBody;
+  if (!refreshToken) {
+    return res.status(400).json({ error: "Refresh token is required" });
+  }
+
+  try {
+    // Verify the refresh token using your REFRESH_SECRET
+    const payload = jwt.verify(refreshToken, process.env.REFRESH_SECRET as string) as JwtPayload;
+
+    // Generate a new refresh token with a 2-hour expiration
+    const newRefreshToken = generateRefreshToken(payload.userId);
+
+    return res.json({ refreshToken: newRefreshToken });
+  } catch (error) {
+    return res.status(401).json({ error: "Invalid refresh token" });
   }
 };

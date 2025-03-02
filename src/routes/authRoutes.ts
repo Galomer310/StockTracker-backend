@@ -1,6 +1,6 @@
 import express from "express";                 // Import express
-import { register, login } from "../controllers/authController"; // Import register and login controllers
-import { TypedRequest, RegisterRequestBody, LoginRequestBody } from "../types/types"; // Import custom types
+import { register, login, refreshToken } from "../controllers/authController"; // Import register and login controllers
+import { TypedRequest, RegisterRequestBody, LoginRequestBody, RefreshTokenRequestBody } from "../types/types"; // Import custom types
 
 const router = express.Router();               // Create a new router instance
 
@@ -13,5 +13,7 @@ router.post("/register", async (req: TypedRequest<RegisterRequestBody>, res) => 
 router.post("/login", async (req: TypedRequest<LoginRequestBody>, res) => {
   await login(req, res);                       // Call the login controller with the request and response objects
 });
-
+router.post("/refresh", async (req: TypedRequest<RefreshTokenRequestBody>, res) => {
+  await refreshToken(req, res);
+});
 export default router;                         // Export the router to be used in the main server file
