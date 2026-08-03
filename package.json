@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Backend service for StockTracker",
+  "description": "Backend service for Investments",
   "main": "dist/Server.js",
   "scripts": {
     "dev": "nodemon src/server.ts",

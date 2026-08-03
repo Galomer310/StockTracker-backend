@@ -8,6 +8,7 @@ export interface TypedRequest<T> extends Request {
 export interface RegisterRequestBody {
   email: string;                              // User's email address
   password: string;                           // User's password
+  display_name: string;                       // Public name shown on the leaderboard
 }
 
 // Define type for user login request body

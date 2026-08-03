@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";      // Import cookie-parser middlewar
 import authRoutes from "./routes/authRoutes";  // Import authentication routes
 import stockRoutes from "./routes/stockRoutes"; // Import stock routes
 import watchlistRoutes from "./routes/watchlistRoutes"; // Import watchlist routes
+import socialRoutes from "./routes/leaderboardRoutes"; // Import leaderboard and public portfolio routes
 
 dotenv.config();                               // Load environment variables from .env file
 
@@ -33,6 +34,7 @@ app.use(cookieParser());                       // Parse cookies attached to clie
 app.use("/auth", authRoutes);                  // Routes for user authentication
 app.use("/stocks", stockRoutes);               // Routes for fetching stock data
 app.use("/watchlist", watchlistRoutes);        // Routes for managing watchlist items
+app.use("/social", socialRoutes);              // Leaderboard and viewing other users' portfolios
 
 // Start the server and listen on the specified PORT (default to 3000 if not provided)
 const PORT = process.env.PORT || 3000;

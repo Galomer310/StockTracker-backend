@@ -11,10 +11,18 @@ export const register = async (
   req: TypedRequest<RegisterRequestBody>,     // Typed request with expected RegisterRequestBody
   res: Response                               // Express response object
 ) => {
-  const { email, password } = req.body;         // Destructure email and password from request body
+  const { email, password, display_name } = req.body; // Destructure credentials and public name
   if (!email || !password)                      // Check if both email and password are provided
     return res.status(400).json({ error: "Email and password are required" });
-  
+
+  // The leaderboard shows this name publicly, so it is required at signup
+  // rather than derived from the email (which would expose the address).
+  const name = typeof display_name === "string" ? display_name.trim() : "";
+  if (!name)
+    return res.status(400).json({ error: "Display name is required" });
+  if (name.length > 40)
+    return res.status(400).json({ error: "Display name must be 40 characters or fewer" });
+
   try {
     // Query the database to see if the user already exists
     const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
@@ -26,8 +34,8 @@ export const register = async (
     
     // Insert the new user into the database and return the new user's id
     const newUser = await pool.query(
-      "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id",
-      [email, hashedPassword]
+      "INSERT INTO users (email, password, display_name) VALUES ($1, $2, $3) RETURNING id",
+      [email, hashedPassword, name]
     );
     
     // Generate an access token for the new user
