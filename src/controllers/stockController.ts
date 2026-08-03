@@ -1,245 +1,227 @@
-import { Request, Response } from "express";   // Import Express types for Request and Response
-import axios from "axios";                       // Import axios for making HTTP requests
-import dotenv from "dotenv";                     // Import dotenv for environment variables
-import pool from "../config/db";                 // Shared PostgreSQL pool (configured with SSL for Neon)
-import { getCached, setCached } from "../utils/cache"; // In-memory TTL cache for upstream responses
+import { Request, Response } from "express";   // Express types
+import pool from "../config/db";                 // Shared PostgreSQL pool (SSL configured for Neon)
+import { getCached, getCachedStale, setCached } from "../utils/cache";
+import { getMarketStatus as computeMarketStatus } from "../services/marketClock";
+import {
+  fetchQuote,
+  fetchDailyBars,
+  fetchOverview,
+  fetchNews,
+  searchSymbols,
+  getQuotaStatus,
+  QuotaExhaustedError,
+  UpstreamThrottledError,
+  UpstreamDataError,
+} from "../services/alphaVantage";
 
-dotenv.config();                                 // Load environment variables
+/* ===========================================================================
+   Market data endpoints, backed by Alpha Vantage.
+   ---------------------------------------------------------------------------
+   The free tier allows 25 requests per day, so caching here is not an
+   optimisation, it is what makes the app usable. Three layers, cheapest first:
 
-// Retrieve the Polygon API key from environment variables. This key stays on the
-// server: the browser never sees it and reaches Polygon only through the proxy
-// handlers below.
-const POLYGON_API_KEY = process.env.POLYGON_API_KEY;
-const POLYGON_BASE_URL = "https://api.polygon.io";
+     1. the `stocks` table    - survives restarts, 24h, drives the leaderboard
+     2. the in-memory cache   - per-endpoint TTLs
+     3. a stale cache read    - when the budget is gone, last known beats none
 
-// Perform a GET against Polygon with the server-side key attached as a query
-// parameter. Passing params via axios (rather than string interpolation) keeps
-// the key out of the interpolated path we build and log.
-const polygonGet = async (path: string, params: Record<string, string> = {}) => {
-    const response = await axios.get(`${POLYGON_BASE_URL}${path}`, {
-        params: { ...params, apiKey: POLYGON_API_KEY as string },
-    });
-    return response.data;
-};
+   Responses carry X-Cache (HIT/MISS/STALE) and X-Quota-Remaining so the
+   client, and you, can see exactly where a number came from.
+   =========================================================================== */
 
-// How long each kind of response stays fresh. Reference data barely moves, so
-// it is held far longer than prices; market status is polled once a minute by
-// the client, so a 60s TTL collapses that to one upstream call per minute
-// regardless of how many users are watching.
+// Reference data barely changes; prices change daily. TTLs reflect that, and
+// are long because the budget is tiny.
 const TTL = {
-  marketStatus: 60 * 1000,             // 1 minute
-  previousClose: 60 * 60 * 1000,       // 1 hour — the previous close is fixed until the next one
-  tickerDetails: 24 * 60 * 60 * 1000,  // 24 hours
-  companyInfo: 24 * 60 * 60 * 1000,    // 24 hours
-  news: 15 * 60 * 1000,                // 15 minutes
-  aggregates: 60 * 60 * 1000,          // 1 hour
+  quote: 60 * 60 * 1000,            // 1 hour
+  bars: 12 * 60 * 60 * 1000,        // 12 hours
+  overview: 7 * 24 * 60 * 60 * 1000, // 7 days
+  news: 6 * 60 * 60 * 1000,         // 6 hours
+  search: 24 * 60 * 60 * 1000,      // 24 hours
 };
 
-// Fetch from Polygon via the cache. Returns the payload plus whether it was
-// served from cache, so handlers can surface that as an X-Cache header.
-const cachedPolygonGet = async (
-    cacheKey: string,
-    path: string,
-    params: Record<string, string>,
-    ttlMs: number
-): Promise<{ data: any; cached: boolean }> => {
-    const hit = getCached<any>(cacheKey);
-    if (hit !== undefined) {
-        return { data: hit, cached: true };
+// Attach cache and quota headers, then send.
+const send = (
+  res: Response,
+  payload: unknown,
+  cacheState: "HIT" | "MISS" | "STALE",
+  extra: Record<string, string> = {}
+) => {
+  res.setHeader("X-Cache", cacheState);
+  res.setHeader("X-Quota-Remaining", String(getQuotaStatus().remaining));
+  for (const [k, v] of Object.entries(extra)) res.setHeader(k, v);
+  res.json(payload);
+};
+
+/**
+ * Serve `key` from cache, otherwise fetch it. If the fetch fails because the
+ * daily budget is gone or the API throttled us, fall back to the stale copy
+ * rather than failing outright - a price from this morning is still useful.
+ */
+const withCache = async <T>(
+  res: Response,
+  key: string,
+  ttlMs: number,
+  fetcher: () => Promise<T>
+): Promise<{ value: T; state: "HIT" | "MISS" | "STALE" } | null> => {
+  const hit = getCached<T>(key);
+  if (hit !== undefined) return { value: hit, state: "HIT" };
+
+  try {
+    const value = await fetcher();
+    setCached(key, value, ttlMs);
+    return { value, state: "MISS" };
+  } catch (error) {
+    const isBudget =
+      error instanceof QuotaExhaustedError || error instanceof UpstreamThrottledError;
+
+    if (isBudget) {
+      const stale = getCachedStale<T>(key);
+      if (stale) {
+        res.setHeader("X-Stale-Age-Seconds", String(Math.round(stale.age / 1000)));
+        return { value: stale.value, state: "STALE" };
+      }
+      res.status(429).json({
+        error:
+          error instanceof QuotaExhaustedError
+            ? "Daily market data limit reached. Alpha Vantage allows 25 requests per day on the free plan; it resets at midnight UTC."
+            : "Market data provider is throttling requests. Please try again shortly.",
+        quota: getQuotaStatus(),
+      });
+      return null;
     }
-    const data = await polygonGet(path, params);
-    setCached(cacheKey, data, ttlMs);
-    return { data, cached: false };
-};
 
-// Send a proxied payload, tagging whether it came from the cache.
-const sendProxied = (res: Response, result: { data: any; cached: boolean }): void => {
-    res.setHeader("X-Cache", result.cached ? "HIT" : "MISS");
-    res.json(result.data);
-};
-
-// Encode a value for safe use as a single URL path segment. Without this a
-// crafted ticker such as "../../v3/reference/..." could steer the proxied
-// request at an arbitrary Polygon endpoint using our key.
-const seg = (value: unknown): string => encodeURIComponent(String(value));
-
-// Translate an upstream failure into a response for our client. Client-side
-// errors from Polygon (404 for an unknown ticker, 429 for rate limiting) are
-// forwarded as-is; anything else is reported as a bad gateway.
-const handleProxyError = (res: Response, error: any, context: string): void => {
-    const status = error.response?.status;
-    console.error(`Error fetching ${context}:`, error.message);
-    if (status && status >= 400 && status < 500) {
-        res.status(status).json({ error: `Upstream error fetching ${context}` });
-        return;
+    if (error instanceof UpstreamDataError) {
+      res.status(404).json({ error: (error as Error).message });
+      return null;
     }
-    res.status(502).json({ error: `Failed to fetch ${context}` });
+
+    console.error("Market data error:", (error as Error).message);
+    res.status(502).json({ error: "Failed to fetch market data" });
+    return null;
+  }
 };
 
-// Guard used by every handler: without a key there is nothing we can proxy.
-const missingApiKey = (res: Response): boolean => {
-    if (!POLYGON_API_KEY) {
-        console.error("POLYGON_API_KEY is not configured");
-        res.status(500).json({ error: "Market data is not configured" });
-        return true;
-    }
-    return false;
-};
-
-// GET MARKET STATUS CONTROLLER
-// Proxies Polygon's current market status (used to warn that prices are stale).
+// GET /stocks/market-status
+// Derived from the clock, so it costs nothing against the daily budget.
 export const getMarketStatus = async (_req: Request, res: Response): Promise<void> => {
-    if (missingApiKey(res)) return;
-    try {
-        const result = await cachedPolygonGet(
-            "market-status",
-            "/v1/marketstatus/now",
-            {},
-            TTL.marketStatus
-        );
-        sendProxied(res, result);
-    } catch (error: any) {
-        handleProxyError(res, error, "market status");
-    }
+  send(res, computeMarketStatus(), "HIT");
 };
 
-// GET STOCK DATA CONTROLLER
-// Returns the last known close for a ticker, cached in Postgres for 24 hours.
+// GET /stocks/quota
+// How much of today's request budget is left.
+export const getQuota = async (_req: Request, res: Response): Promise<void> => {
+  res.json(getQuotaStatus());
+};
+
+// GET /stocks/:ticker
+// Latest close for one symbol, backed by the 24h `stocks` table so the
+// leaderboard and watchlist can value portfolios without spending budget.
 export const getStockData = async (req: Request, res: Response): Promise<void> => {
-    const { ticker } = req.params;              // Extract the ticker from URL parameters
-    if (!ticker) {                              // If no ticker is provided, send a 400 error response
-        res.status(400).json({ error: "Stock ticker is required" });
-        return;
-    }
-    if (missingApiKey(res)) return;
-    try {
-        // Check if stock data exists in the database and is recent (updated within the last 24 hours)
-        const stockResult = await pool.query(
-            "SELECT * FROM stocks WHERE stock_symbol = $1 AND updated_at > NOW() - INTERVAL '24 hours'",
-            [ticker]
-        );
-        if (stockResult.rows.length > 0) {
-            // Return cached stock data from the database
-            res.json({
-              stock_symbol: ticker,
-              last_price: stockResult.rows[0].last_price,
-              source: "cache"
-            });
-            return;
-        }
-        // If no recent data is found, fetch fresh data from Polygon.io
-        const data = await polygonGet(`/v2/aggs/ticker/${seg(ticker)}/prev`, { adjusted: "true" });
-        // Extract the last price from the response data
-        const lastPrice = data.results?.[0]?.c;
-        if (!lastPrice) throw new Error("Invalid stock data"); // Throw an error if last price is missing
+  const ticker = String(req.params.ticker || "").toUpperCase();
+  if (!ticker) {
+    res.status(400).json({ error: "Stock ticker is required" });
+    return;
+  }
 
-        // Update the database with the newly fetched stock data using an upsert
-        await pool.query(
-            "INSERT INTO stocks (stock_symbol, last_price, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (stock_symbol) DO UPDATE SET last_price = $2, updated_at = NOW()",
-            [ticker, lastPrice]
-        );
-        // Return the fresh stock data with a source indicating it came from Polygon.io
-        res.json({ stock_symbol: ticker, last_price: lastPrice, source: "polygon.io" });
-    } catch (error: any) {
-        handleProxyError(res, error, "stock data");
+  try {
+    const cached = await pool.query(
+      "SELECT last_price FROM stocks WHERE stock_symbol = $1 AND updated_at > NOW() - INTERVAL '24 hours'",
+      [ticker]
+    );
+    if (cached.rows.length > 0) {
+      send(res, {
+        stock_symbol: ticker,
+        last_price: cached.rows[0].last_price,
+        source: "cache",
+      }, "HIT");
+      return;
     }
+  } catch (error) {
+    console.error("Error reading stocks cache:", (error as Error).message);
+  }
+
+  const result = await withCache(res, `quote:${ticker}`, TTL.quote, () => fetchQuote(ticker));
+  if (!result) return;
+
+  // Persist so the next 24 hours are free, and so the leaderboard can value
+  // this symbol without any API call at all.
+  try {
+    await pool.query(
+      `INSERT INTO stocks (stock_symbol, last_price, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (stock_symbol)
+       DO UPDATE SET last_price = $2, updated_at = NOW()`,
+      [ticker, result.value.price]
+    );
+  } catch (error) {
+    console.error("Error writing stocks cache:", (error as Error).message);
+  }
+
+  send(res, {
+    stock_symbol: ticker,
+    last_price: result.value.price,
+    source: "alphavantage",
+  }, result.state);
 };
 
-// GET PREVIOUS CLOSE CONTROLLER
-// Pass-through of the previous-day aggregate bar (open/high/low/close/volume).
-export const getPreviousClose = async (req: Request, res: Response): Promise<void> => {
-    const { ticker } = req.params;
-    if (missingApiKey(res)) return;
-    try {
-        const result = await cachedPolygonGet(
-            `prev:${ticker}`,
-            `/v2/aggs/ticker/${seg(ticker)}/prev`,
-            { adjusted: "true" },
-            TTL.previousClose
-        );
-        sendProxied(res, result);
-    } catch (error: any) {
-        handleProxyError(res, error, "previous close");
-    }
+// GET /stocks/:ticker/quote
+// Full quote: open/high/low/price/volume/change.
+export const getQuoteDetail = async (req: Request, res: Response): Promise<void> => {
+  const ticker = String(req.params.ticker || "").toUpperCase();
+  const result = await withCache(res, `quote:${ticker}`, TTL.quote, () => fetchQuote(ticker));
+  if (!result) return;
+  send(res, result.value, result.state);
 };
 
-// GET TICKER DETAILS CONTROLLER
-// Pass-through of Polygon's ticker reference data (name, sic_description, branding).
+// GET /stocks/:ticker/details
+// Company fundamentals. Replaces the two separate Polygon reference calls.
 export const getTickerDetails = async (req: Request, res: Response): Promise<void> => {
-    const { ticker } = req.params;
-    if (missingApiKey(res)) return;
-    try {
-        const result = await cachedPolygonGet(
-            `details:${ticker}`,
-            `/v3/reference/tickers/${seg(ticker)}`,
-            {},
-            TTL.tickerDetails
-        );
-        sendProxied(res, result);
-    } catch (error: any) {
-        handleProxyError(res, error, "ticker details");
-    }
+  const ticker = String(req.params.ticker || "").toUpperCase();
+  const result = await withCache(res, `overview:${ticker}`, TTL.overview, () =>
+    fetchOverview(ticker)
+  );
+  if (!result) return;
+  send(res, result.value, result.state);
 };
 
-// GET COMPANY INFO CONTROLLER
-// Pass-through of Polygon's legacy company metadata endpoint (CEO, employees).
-// Note: this is a deprecated v1 endpoint and may 404 on current Polygon plans.
-export const getCompanyInfo = async (req: Request, res: Response): Promise<void> => {
-    const { ticker } = req.params;
-    if (missingApiKey(res)) return;
-    try {
-        const result = await cachedPolygonGet(
-            `company:${ticker}`,
-            `/v1/meta/symbols/${seg(ticker)}/company`,
-            {},
-            TTL.companyInfo
-        );
-        sendProxied(res, result);
-    } catch (error: any) {
-        handleProxyError(res, error, "company info");
-    }
-};
-
-// GET TICKER NEWS CONTROLLER
-// Pass-through of the latest news articles for a ticker.
+// GET /stocks/:ticker/news
 export const getTickerNews = async (req: Request, res: Response): Promise<void> => {
-    const { ticker } = req.params;
-    if (missingApiKey(res)) return;
-    try {
-        const result = await cachedPolygonGet(
-            `news:${ticker}`,
-            "/v2/reference/news",
-            { ticker: String(ticker) },
-            TTL.news
-        );
-        sendProxied(res, result);
-    } catch (error: any) {
-        handleProxyError(res, error, "ticker news");
-    }
+  const ticker = String(req.params.ticker || "").toUpperCase();
+  const result = await withCache(res, `news:${ticker}`, TTL.news, () => fetchNews(ticker));
+  if (!result) return;
+  send(res, { articles: result.value }, result.state);
 };
 
-// GET AGGREGATES CONTROLLER
-// Pass-through of historical aggregate bars for a ticker over a date range.
-// Expects multiplier, timespan, from and to as query parameters.
+// GET /stocks/:ticker/aggregates?days=30
+// Historical daily bars. Kept in the { t, o, h, l, c, v } shape the charts
+// already consume, so the client charting code is unchanged.
 export const getAggregates = async (req: Request, res: Response): Promise<void> => {
-    const { ticker } = req.params;
-    const { multiplier, timespan, from, to } = req.query;
-    if (!multiplier || !timespan || !from || !to) {
-        res.status(400).json({
-            error: "multiplier, timespan, from and to query parameters are required",
-        });
-        return;
-    }
-    if (missingApiKey(res)) return;
-    try {
-        const result = await cachedPolygonGet(
-            `aggs:${ticker}:${multiplier}:${timespan}:${from}:${to}`,
-            `/v2/aggs/ticker/${seg(ticker)}/range/${seg(multiplier)}/${seg(timespan)}/${seg(from)}/${seg(to)}`,
-            { adjusted: "true" },
-            TTL.aggregates
-        );
-        sendProxied(res, result);
-    } catch (error: any) {
-        handleProxyError(res, error, "aggregated data");
-    }
+  const ticker = String(req.params.ticker || "").toUpperCase();
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 730);
+
+  // Bucket the cache key so 30d and 90d do not thrash one another.
+  const bucket = days <= 7 ? "7" : days <= 30 ? "30" : days <= 90 ? "90" : days <= 365 ? "365" : "730";
+
+  const result = await withCache(res, `bars:${ticker}:${bucket}`, TTL.bars, () =>
+    fetchDailyBars(ticker, Number(bucket))
+  );
+  if (!result) return;
+
+  // Trim the cached bucket down to exactly what was asked for.
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  send(res, { bars: result.value.filter((bar) => bar.t >= cutoff) }, result.state);
+};
+
+// GET /stocks/search?keywords=micro
+// Ticker lookup by free text.
+export const getSymbolSearch = async (req: Request, res: Response): Promise<void> => {
+  const keywords = String(req.query.keywords || "").trim();
+  if (!keywords) {
+    res.status(400).json({ error: "keywords query parameter is required" });
+    return;
+  }
+  const result = await withCache(res, `search:${keywords.toLowerCase()}`, TTL.search, () =>
+    searchSymbols(keywords)
+  );
+  if (!result) return;
+  send(res, { matches: result.value }, result.state);
 };

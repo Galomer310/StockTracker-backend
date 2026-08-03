@@ -1,46 +1,52 @@
 import express from "express";                 // Import express
 import {
   getMarketStatus,
+  getQuota,
   getStockData,
-  getPreviousClose,
+  getQuoteDetail,
   getTickerDetails,
-  getCompanyInfo,
   getTickerNews,
   getAggregates,
+  getSymbolSearch,
 } from "../controllers/stockController";       // Import the stock controllers
 import { authenticateUser } from "../middleware/authMiddleware"; // Import authentication middleware
 import { stockApiLimiter } from "../middleware/rateLimiter";     // Per-user rate limit for market data
 
 const router = express.Router();               // Create a new router instance
 
-// Every route below proxies Polygon.io using the server-side API key, so all of
-// them require a valid token — otherwise the proxy would be an open relay for
-// our paid market-data quota.
+// Every route below spends the Alpha Vantage daily budget (25 requests on the
+// free plan), so all of them require a valid token - otherwise the proxy would
+// be an open relay for an allowance that runs out in seconds.
 //
 // authenticateUser runs first so the limiter can key on the user id, then
-// stockApiLimiter caps each user's spend. Responses are additionally cached in
-// the controller, so a rate-limited burst mostly never reaches Polygon at all.
+// stockApiLimiter caps each user. The controller adds a hard daily budget and
+// serialises upstream calls on top of that.
 router.use(authenticateUser, stockApiLimiter);
 
-// Market status must be declared before "/:ticker", or it would be captured as a ticker
+// Fixed paths must come before "/:ticker", or they would be read as tickers.
+
+// Market open/closed, derived from the clock - costs nothing upstream
 router.get("/market-status", getMarketStatus);
 
-// Cached last close for a ticker (e.g. GET /stocks/AAPL)
+// How much of today's request budget remains
+router.get("/quota", getQuota);
+
+// Ticker lookup by free text (e.g. GET /stocks/search?keywords=micro)
+router.get("/search", getSymbolSearch);
+
+// Latest close, served from the 24h `stocks` table where possible
 router.get("/:ticker", getStockData);
 
-// Full previous-day bar, including volume (e.g. GET /stocks/AAPL/prev)
-router.get("/:ticker/prev", getPreviousClose);
+// Full quote: open/high/low/price/volume/change
+router.get("/:ticker/quote", getQuoteDetail);
 
-// Reference data: company name, industry, branding
+// Company fundamentals: name, sector, industry, description, market cap
 router.get("/:ticker/details", getTickerDetails);
 
-// Legacy company metadata: CEO, employee count, description
-router.get("/:ticker/company", getCompanyInfo);
-
-// Latest news articles for a ticker
+// Recent news articles mentioning the ticker
 router.get("/:ticker/news", getTickerNews);
 
-// Historical bars; requires multiplier, timespan, from and to query parameters
+// Historical daily bars; accepts ?days=30
 router.get("/:ticker/aggregates", getAggregates);
 
 export default router;                         // Export the router

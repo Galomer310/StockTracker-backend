@@ -1,12 +1,9 @@
 import { Request, Response, NextFunction, RequestHandler } from "express"; // Import Express types
 import pool from "../config/db";              // Import the PostgreSQL pool from the config
-import axios from "axios";                    // Import axios for HTTP requests
 import dotenv from "dotenv";                  // Import dotenv to load environment variables
+import { fetchQuote } from "../services/alphaVantage"; // Market data client (budgeted + serialised)
 
 dotenv.config();                              // Load environment variables
-
-// Retrieve the Polygon API key from environment variables
-const POLYGON_API_KEY = process.env.POLYGON_API_KEY;
 
 // GET WATCHLIST CONTROLLER
 // Retrieves all watchlist stocks for the authenticated user
@@ -68,11 +65,11 @@ export const addToWatchlist: RequestHandler = async (req, res, next): Promise<vo
         // Use the cached price if available
         currentPrice = parseFloat(stockDataResult.rows[0].last_price);
       } else {
-        // Fetch fresh data from Polygon.io if no recent data exists
-        const response = await axios.get(
-          `https://api.polygon.io/v2/aggs/ticker/${stock_symbol}/prev?adjusted=true&apiKey=${POLYGON_API_KEY}`
-        );
-        currentPrice = response.data.results?.[0]?.c;
+        // No recent cached price, so spend one request on a live quote.
+        // This can throw QuotaExhaustedError once the daily budget is gone;
+        // the caller surfaces that as a 5xx via next(error).
+        const quote = await fetchQuote(String(stock_symbol).toUpperCase());
+        currentPrice = quote.price;
         if (!currentPrice) throw new Error("Invalid stock data");
         // Upsert the fetched data into the stocks table
         await pool.query(
