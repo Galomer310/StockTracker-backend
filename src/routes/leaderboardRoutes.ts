@@ -1,11 +1,13 @@
 import express from "express";                 // Import express
 import { getLeaderboard, getUserPortfolio, getUserJournal } from "../controllers/leaderboardController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
+import { socialLimiter } from "../middleware/rateLimiter";       // Per-user read limit
 
 const router = express.Router();               // Create a new router instance
 
-// Both routes expose other people's data, so a valid token is required.
-router.use(authenticateUser);
+// These routes expose other people's data, so a valid token is required.
+// authenticateUser runs first so the limiter can key on the user id.
+router.use(authenticateUser, socialLimiter);
 
 // GET /social/leaderboard - every account ranked by percentage return
 router.get("/leaderboard", getLeaderboard);

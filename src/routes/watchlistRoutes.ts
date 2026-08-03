@@ -1,23 +1,32 @@
 import express from "express";                 // Import express
 import { getWatchlist, addToWatchlist, sellHolding, removeFromWatchlist, updateWatchlistItem } from "../controllers/watchlistController"; // Import controllers for watchlist actions
 import { authenticateUser } from "../middleware/authMiddleware"; // Import authentication middleware
+import { watchlistLimiter, stockApiLimiter } from "../middleware/rateLimiter"; // Per-user limits
 
 const router = express.Router();               // Create a new router instance
 
-// GET route: fetch the authenticated user's watchlist
-router.get("/", authenticateUser, getWatchlist);
+// authenticateUser runs first so the limiter can key on the user id.
+router.use(authenticateUser, watchlistLimiter);
 
-// POST route: add a new stock to the watchlist (requires authentication)
-router.post("/", authenticateUser, addToWatchlist);
+// GET route: fetch the authenticated user's holdings
+router.get("/", getWatchlist);
+
+// POST route: record a buy.
+//
+// This is the one portfolio route that can spend Alpha Vantage budget: an
+// uncached symbol costs a live quote. It therefore also carries the market
+// data limiter, so a user's total spend is capped across /stocks and
+// /watchlist together instead of being bypassable through this route.
+router.post("/", stockApiLimiter, addToWatchlist);
 
 // POST route: sell all or part of a holding, recording the trade and its note.
 // Distinct from DELETE, which removes a mistyped row without logging a trade.
-router.post("/:id/sell", authenticateUser, sellHolding);
+router.post("/:id/sell", sellHolding);
 
-// DELETE route: remove a watchlist item by id (requires authentication)
-router.delete("/:id", authenticateUser, removeFromWatchlist);
+// DELETE route: remove a mistyped entry, inside the correction window only
+router.delete("/:id", removeFromWatchlist);
 
-// PUT route: update a watchlist item by id (requires authentication)
-router.put("/:id", authenticateUser, updateWatchlistItem);
+// PUT route: correct a holding, inside the correction window only
+router.put("/:id", updateWatchlistItem);
 
 export default router;                         // Export the router

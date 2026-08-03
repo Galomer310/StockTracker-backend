@@ -1,29 +1,56 @@
 import rateLimit from "express-rate-limit"; // Import the express-rate-limit middleware
 import { Request } from "express";           // Import the Express Request type
 
-// Rate limiter for the market-data proxy routes.
-//
-// These routes spend our Polygon.io quota, so the budget is tracked per user
-// rather than per IP: several users behind one office NAT should not share a
-// bucket, and one user on several devices should not get a larger allowance.
-//
-// This must be mounted AFTER authenticateUser so that req.user is populated.
+// Every limiter below is mounted AFTER authenticateUser, so budgets are
+// tracked per account rather than per IP: several users behind one office NAT
+// should not share a bucket, and one user on several devices should not get a
+// larger allowance. Keying on the id rather than req.ip also sidesteps IPv6
+// and trust-proxy handling entirely. The "anonymous" fallback is unreachable
+// in practice and exists only so the key is never undefined.
+const byUser = (req: Request): string => {
+  const userId = (req as any).user?.id;
+  return userId !== undefined ? `user:${userId}` : "anonymous";
+};
+
+// Market data. These routes spend the Alpha Vantage daily allowance.
 export const stockApiLimiter = rateLimit({
   windowMs: 60 * 1000, // Rolling one minute window
   limit: 60,           // 60 market-data requests per user per minute
   standardHeaders: "draft-7", // Emit the standard RateLimit-* response headers
   legacyHeaders: false,       // Omit the deprecated X-RateLimit-* headers
-  // Key on the authenticated user id. Every route using this limiter sits
-  // behind authenticateUser, so the fallback is unreachable in practice; it
-  // exists only so the key is never undefined. Keying on the id rather than
-  // req.ip also sidesteps IPv6 and trust-proxy handling entirely.
-  keyGenerator: (req: Request) => {
-    const userId = (req as any).user?.id;
-    return userId !== undefined ? `user:${userId}` : "anonymous";
-  },
+  keyGenerator: byUser,
   message: {
     error: "Too many market data requests. Please wait a moment and try again.",
   },
+});
+
+// Portfolio reads and writes. Mostly cheap database work, so the ceiling is
+// generous: opening the dashboard already fires one request per holding.
+// This exists to stop a runaway client hammering the database, not to ration
+// normal use.
+//
+// Note that POST /watchlist can additionally spend Alpha Vantage budget, so
+// that route also carries stockApiLimiter - a user's total market-data spend
+// is then capped across /stocks and /watchlist together rather than per route.
+export const watchlistLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: { error: "Too many portfolio requests. Please slow down." },
+});
+
+// Leaderboard, other people's portfolios and journals. The leaderboard query
+// aggregates across every account, so it is the most expensive read in the
+// app and the one most worth protecting.
+export const socialLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 100,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: { error: "Too many leaderboard requests. Please slow down." },
 });
 
 // --- Authentication limiters -------------------------------------------------
