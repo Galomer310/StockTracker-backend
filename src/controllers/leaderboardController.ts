@@ -168,3 +168,68 @@ export const getUserPortfolio: RequestHandler = async (req, res, next) => {
     next(error);
   }
 };
+
+// GET USER JOURNAL
+// The owner's recorded buys and sells with their reasoning. Public to anyone
+// who may view the portfolio, so it passes through the same access gate.
+export const getUserJournal: RequestHandler = async (req, res, next) => {
+  const viewerId = (req as any).user.id;
+  const ownerId = Number(req.params.id);
+
+  if (!Number.isInteger(ownerId)) {
+    res.status(400).json({ error: "Invalid user id" });
+    return;
+  }
+
+  if (!canViewPortfolio(viewerId, ownerId)) {
+    res.status(403).json({ error: "You do not have access to this journal" });
+    return;
+  }
+
+  try {
+    const owner = await pool.query(
+      "SELECT id, display_name FROM users WHERE id = $1",
+      [ownerId]
+    );
+    if (owner.rows.length === 0) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const result = await pool.query(
+      `SELECT id, stock_symbol, action, quantity, price, note, occurred_at, created_at
+       FROM trade_notes
+       WHERE user_id = $1
+       ORDER BY occurred_at DESC, id DESC
+       LIMIT 200`,
+      [ownerId]
+    );
+
+    res.json({
+      user: {
+        id: owner.rows[0].id,
+        display_name: owner.rows[0].display_name || `Investor #${owner.rows[0].id}`,
+      },
+      is_self: viewerId === ownerId,
+      entries: result.rows.map((row) => ({
+        id: row.id,
+        stock_symbol: row.stock_symbol,
+        action: row.action,
+        quantity: Number(row.quantity),
+        price: parseFloat(row.price),
+        note: row.note,
+        occurred_at: row.occurred_at,
+        created_at: row.created_at,
+        // True when the trade was backdated relative to when it was written up,
+        // which viewers deserve to see rather than having it quietly smoothed.
+        backdated:
+          Math.abs(
+            new Date(row.created_at).getTime() - new Date(row.occurred_at).getTime()
+          ) > 60 * 60 * 1000,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching journal:", error);
+    next(error);
+  }
+};

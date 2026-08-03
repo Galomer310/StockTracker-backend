@@ -36,3 +36,28 @@ CREATE TABLE IF NOT EXISTS watchlist (
 
 CREATE INDEX IF NOT EXISTS idx_watchlist_user_id ON watchlist(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_symbol  ON watchlist(stock_symbol);
+
+-- Trade journal.
+--
+-- One row per recorded buy or sell, with the owner's thesis. Separate from
+-- `watchlist` because that table holds only CURRENT positions: when a holding
+-- is sold its row shrinks or disappears, but the trade and its reasoning must
+-- survive for other users to read.
+--
+-- occurred_at is when the trade happened (a manual entry can be backdated);
+-- created_at is when the note was written. Showing both keeps a backdated
+-- entry honest.
+CREATE TABLE IF NOT EXISTS trade_notes (
+  id            SERIAL PRIMARY KEY,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  stock_symbol  TEXT NOT NULL,
+  action        TEXT NOT NULL CHECK (action IN ('buy', 'sell')),
+  quantity      INTEGER NOT NULL CHECK (quantity > 0),
+  price         NUMERIC(14,4) NOT NULL,
+  note          TEXT NOT NULL,
+  occurred_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_trade_notes_user   ON trade_notes(user_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_trade_notes_symbol ON trade_notes(stock_symbol);

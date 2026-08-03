@@ -1,5 +1,5 @@
 import express from "express";                 // Import express
-import { getWatchlist, addToWatchlist, removeFromWatchlist, updateWatchlistItem } from "../controllers/watchlistController"; // Import controllers for watchlist actions
+import { getWatchlist, addToWatchlist, sellHolding, removeFromWatchlist, updateWatchlistItem } from "../controllers/watchlistController"; // Import controllers for watchlist actions
 import { authenticateUser } from "../middleware/authMiddleware"; // Import authentication middleware
 
 const router = express.Router();               // Create a new router instance
@@ -9,6 +9,10 @@ router.get("/", authenticateUser, getWatchlist);
 
 // POST route: add a new stock to the watchlist (requires authentication)
 router.post("/", authenticateUser, addToWatchlist);
+
+// POST route: sell all or part of a holding, recording the trade and its note.
+// Distinct from DELETE, which removes a mistyped row without logging a trade.
+router.post("/:id/sell", authenticateUser, sellHolding);
 
 // DELETE route: remove a watchlist item by id (requires authentication)
 router.delete("/:id", authenticateUser, removeFromWatchlist);

@@ -1,160 +1,285 @@
-import { Request, Response, NextFunction, RequestHandler } from "express"; // Import Express types
-import pool from "../config/db";              // Import the PostgreSQL pool from the config
-import dotenv from "dotenv";                  // Import dotenv to load environment variables
+import { RequestHandler } from "express";      // Import Express types
+import pool from "../config/db";                // Import the PostgreSQL pool from the config
+import dotenv from "dotenv";                    // Import dotenv to load environment variables
 import { fetchQuote } from "../services/alphaVantage"; // Market data client (budgeted + serialised)
 
-dotenv.config();                              // Load environment variables
+dotenv.config();                                // Load environment variables
+
+/* ===========================================================================
+   Holdings and the trade journal.
+   ---------------------------------------------------------------------------
+   `watchlist` holds CURRENT positions. `trade_notes` records what was done and
+   why, and outlives the position: selling shrinks or deletes the holding row,
+   but the trade and its thesis stay readable by other users.
+
+   Every buy and sell writes both tables in one transaction. A trade that
+   appeared in the portfolio without its reasoning, or a thesis with no trade,
+   would both be worse than failing the request outright.
+   =========================================================================== */
+
+// A thesis is required on every trade, so the public journal never has an
+// entry with no reasoning behind it.
+const MAX_NOTE_LENGTH = 2000;
+
+const validateNote = (raw: unknown): { note: string } | { error: string } => {
+  const note = typeof raw === "string" ? raw.trim() : "";
+  if (!note) return { error: "A note is required. Explain your reasoning for this trade." };
+  if (note.length > MAX_NOTE_LENGTH) {
+    return { error: `Note must be ${MAX_NOTE_LENGTH} characters or fewer.` };
+  }
+  return { note };
+};
 
 // GET WATCHLIST CONTROLLER
-// Retrieves all watchlist stocks for the authenticated user
+// Retrieves all holdings for the authenticated user
 export const getWatchlist: RequestHandler = async (req, res, next) => {
   try {
-    // Extract the user id from the request object (populated by authentication middleware)
     const userId = (req as any).user.id;
-    // Query the database for watchlist items belonging to the user, sorted by date added (ascending)
     const result = await pool.query(
       "SELECT * FROM watchlist WHERE user_id = $1 ORDER BY added_at ASC",
       [userId]
     );
-    const watchlist = result.rows;          // Get the watchlist items from the query result
-    
-    // Calculate the total invested price for the watchlist
+    const watchlist = result.rows;
+
+    // Total invested across the portfolio
     const totalPrice = watchlist.reduce((sum: number, item: any) => {
       return sum + parseFloat(item.price_at_time) * Number(item.quantity);
     }, 0);
-    
-    // Return the total price and the watchlist items in JSON format
+
     res.json({ total: totalPrice, watchlist });
   } catch (error) {
-    console.error("Error fetching watchlist:", error); // Log any errors
-    next(error);                            // Pass error to next middleware (error handler)
+    console.error("Error fetching watchlist:", error);
+    next(error);
   }
 };
 
 // ADD TO WATCHLIST CONTROLLER
-// Adds a new stock to the user's watchlist, either with manual data entry or automatic API fetch
+// Records a buy: creates the holding and its journal entry together.
 export const addToWatchlist: RequestHandler = async (req, res, next): Promise<void> => {
-  // Destructure required fields from request body
-  const { stock_symbol, quantity, industry, price_at_time, added_at, manual } = req.body;
-  const userId = (req as any).user.id;        // Get user id from the request object
-  if (!stock_symbol) {                        // Ensure stock symbol is provided
+  const { stock_symbol, quantity, industry, price_at_time, added_at, manual, note } = req.body;
+  const userId = (req as any).user.id;
+
+  if (!stock_symbol) {
     res.status(400).json({ error: "Stock symbol is required" });
     return;
   }
-  // Convert quantity to an integer (default to 1 if not provided)
+
+  const noteResult = validateNote(note);
+  if ("error" in noteResult) {
+    res.status(400).json({ error: noteResult.error });
+    return;
+  }
+
+  const symbol = String(stock_symbol).toUpperCase();
   const qty = quantity ? parseInt(quantity) : 1;
+  if (!Number.isInteger(qty) || qty < 1) {
+    res.status(400).json({ error: "Quantity must be a positive whole number" });
+    return;
+  }
+
+  const client = await pool.connect();
   try {
-    let currentPrice: number;                 // Variable to hold the current price of the stock
-    let timestamp: string;                    // Variable to hold the timestamp of the entry
-    
+    let currentPrice: number;
+    let timestamp: string;
+
     if (manual) {
-      // If manual mode, use provided price and date
+      // Manual entry supplies its own price and (possibly backdated) date
       if (!price_at_time || !added_at) {
         res.status(400).json({ error: "Manual entry requires price and added_at date." });
         return;
       }
-      currentPrice = parseFloat(price_at_time); // Convert provided price to a number
-      timestamp = added_at;                    // Use the provided timestamp (assumed to be an ISO string)
+      currentPrice = parseFloat(price_at_time);
+      timestamp = added_at;
     } else {
-      // Automatic mode: try to fetch current price from the stocks table if recent data exists
-      const stockDataResult = await pool.query(
-        "SELECT * FROM stocks WHERE stock_symbol = $1 AND updated_at > NOW() - INTERVAL '24 hours'",
-        [stock_symbol]
+      // Use the cached price where possible; otherwise spend one request.
+      const cached = await client.query(
+        "SELECT last_price FROM stocks WHERE stock_symbol = $1 AND updated_at > NOW() - INTERVAL '24 hours'",
+        [symbol]
       );
-      if (stockDataResult.rows.length > 0) {
-        // Use the cached price if available
-        currentPrice = parseFloat(stockDataResult.rows[0].last_price);
+      if (cached.rows.length > 0) {
+        currentPrice = parseFloat(cached.rows[0].last_price);
       } else {
-        // No recent cached price, so spend one request on a live quote.
-        // This can throw QuotaExhaustedError once the daily budget is gone;
-        // the caller surfaces that as a 5xx via next(error).
-        const quote = await fetchQuote(String(stock_symbol).toUpperCase());
+        const quote = await fetchQuote(symbol);
         currentPrice = quote.price;
         if (!currentPrice) throw new Error("Invalid stock data");
-        // Upsert the fetched data into the stocks table
-        await pool.query(
+        await client.query(
           `INSERT INTO stocks (stock_symbol, last_price, updated_at)
            VALUES ($1, $2, NOW())
            ON CONFLICT (stock_symbol)
            DO UPDATE SET last_price = $2, updated_at = NOW()`,
-          [stock_symbol, currentPrice]
+          [symbol, currentPrice]
         );
       }
-      // Use the current time as the timestamp
       timestamp = new Date().toISOString();
     }
-    
-    // Insert the new watchlist entry into the database
-    await pool.query(
+
+    await client.query("BEGIN");
+
+    await client.query(
       `INSERT INTO watchlist (user_id, stock_symbol, price_at_time, quantity, added_at, industry)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, stock_symbol, currentPrice, qty, timestamp, industry || null]
+      [userId, symbol, currentPrice, qty, timestamp, industry || null]
     );
-    
-    // Respond with a success message
-    res.json({ message: `Stock ${stock_symbol} added with price ${currentPrice} and quantity ${qty}` });
+
+    await client.query(
+      `INSERT INTO trade_notes (user_id, stock_symbol, action, quantity, price, note, occurred_at)
+       VALUES ($1, $2, 'buy', $3, $4, $5, $6)`,
+      [userId, symbol, qty, currentPrice, noteResult.note, timestamp]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      message: `Bought ${qty} ${symbol} at ${currentPrice}`,
+      stock_symbol: symbol,
+      quantity: qty,
+      price: currentPrice,
+    });
   } catch (error) {
-    console.error("Error adding to watchlist:", error); // Log any errors
-    next(error);                           // Pass error to next middleware
+    await client.query("ROLLBACK").catch(() => undefined);
+    console.error("Error adding to watchlist:", error);
+    next(error);
+  } finally {
+    client.release();
+  }
+};
+
+// SELL HOLDING CONTROLLER
+// Records a sale: reduces or closes the position and writes the journal entry.
+// Distinct from removeFromWatchlist, which deletes a mistyped row without
+// claiming a trade happened.
+export const sellHolding: RequestHandler = async (req, res, next): Promise<void> => {
+  const { id } = req.params;
+  const { quantity, price, note } = req.body;
+  const userId = (req as any).user.id;
+
+  const noteResult = validateNote(note);
+  if ("error" in noteResult) {
+    res.status(400).json({ error: noteResult.error });
+    return;
+  }
+
+  const sellQty = parseInt(quantity);
+  if (!Number.isInteger(sellQty) || sellQty < 1) {
+    res.status(400).json({ error: "Quantity must be a positive whole number" });
+    return;
+  }
+
+  const salePrice = parseFloat(price);
+  if (!Number.isFinite(salePrice) || salePrice <= 0) {
+    res.status(400).json({ error: "A valid sale price is required" });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Lock the row so two concurrent sells cannot both pass the quantity check
+    const held = await client.query(
+      "SELECT id, stock_symbol, quantity FROM watchlist WHERE id = $1 AND user_id = $2 FOR UPDATE",
+      [id, userId]
+    );
+    if (held.rows.length === 0) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "Holding not found" });
+      return;
+    }
+
+    const holding = held.rows[0];
+    const heldQty = Number(holding.quantity);
+    if (sellQty > heldQty) {
+      await client.query("ROLLBACK");
+      res.status(400).json({
+        error: `You only hold ${heldQty} share${heldQty === 1 ? "" : "s"} of ${holding.stock_symbol}.`,
+      });
+      return;
+    }
+
+    const closesPosition = sellQty === heldQty;
+    if (closesPosition) {
+      await client.query("DELETE FROM watchlist WHERE id = $1", [id]);
+    } else {
+      await client.query("UPDATE watchlist SET quantity = quantity - $1 WHERE id = $2", [
+        sellQty,
+        id,
+      ]);
+    }
+
+    await client.query(
+      `INSERT INTO trade_notes (user_id, stock_symbol, action, quantity, price, note, occurred_at)
+       VALUES ($1, $2, 'sell', $3, $4, $5, NOW())`,
+      [userId, holding.stock_symbol, sellQty, salePrice, noteResult.note]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      message: `Sold ${sellQty} ${holding.stock_symbol} at ${salePrice}`,
+      closed: closesPosition,
+      remaining: closesPosition ? 0 : heldQty - sellQty,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    console.error("Error selling holding:", error);
+    next(error);
+  } finally {
+    client.release();
   }
 };
 
 // REMOVE FROM WATCHLIST CONTROLLER
-// Removes a watchlist item by its id for the authenticated user
+// Deletes a mistyped entry. Deliberately does NOT write a journal entry: this
+// is "I typed this wrong", not "I sold this". Use sellHolding for a real exit.
 export const removeFromWatchlist: RequestHandler = async (req, res, next): Promise<void> => {
-  const { id } = req.params;                  // Extract the watchlist item id from URL parameters
-  const userId = (req as any).user.id;          // Get the authenticated user id
-  if (!id) {                                  // Ensure an id is provided
+  const { id } = req.params;
+  const userId = (req as any).user.id;
+  if (!id) {
     res.status(400).json({ error: "Watchlist item id is required" });
     return;
   }
   try {
-    // Delete the watchlist item where both id and user_id match
     const result = await pool.query(
       "DELETE FROM watchlist WHERE id = $1 AND user_id = $2",
       [id, userId]
     );
-    if (result.rowCount === 0) {              // If no rows were deleted, the item was not found
+    if (result.rowCount === 0) {
       res.status(404).json({ error: `Watchlist item not found` });
       return;
     }
-    // Respond with a success message
     res.json({ message: `Watchlist item removed` });
   } catch (error) {
-    console.error("Error removing from watchlist:", error); // Log any errors
-    next(error);                           // Pass error to next middleware
+    console.error("Error removing from watchlist:", error);
+    next(error);
   }
 };
 
 // UPDATE WATCHLIST ITEM CONTROLLER
-// Updates an existing watchlist item (e.g., quantity, price_at_time, or added_at)
+// Corrects the details of an existing holding.
 export const updateWatchlistItem: RequestHandler = async (req, res, next): Promise<void> => {
-  const { id } = req.params;                  // Extract the id of the watchlist item from URL parameters
-  const { quantity, price_at_time, added_at } = req.body; // Destructure updated values from the request body
-  const userId = (req as any).user.id;          // Get the authenticated user id
+  const { id } = req.params;
+  const { quantity, price_at_time, added_at } = req.body;
+  const userId = (req as any).user.id;
   try {
-    // Verify that the watchlist item exists for the given user
     const result = await pool.query(
       "SELECT * FROM watchlist WHERE id = $1 AND user_id = $2",
       [id, userId]
     );
-    if (result.rows.length === 0) {           // If not found, respond with a 404 error
+    if (result.rows.length === 0) {
       res.status(404).json({ error: "Watchlist item not found" });
       return;
     }
-    // Update the watchlist item with new values using COALESCE to retain existing values if not provided
     await pool.query(
-      `UPDATE watchlist 
+      `UPDATE watchlist
        SET quantity = COALESCE($1, quantity),
            price_at_time = COALESCE($2, price_at_time),
            added_at = COALESCE($3, added_at)
        WHERE id = $4`,
       [quantity, price_at_time, added_at, id]
     );
-    // Respond with a success message
     res.json({ message: "Watchlist item updated" });
   } catch (error) {
-    console.error("Error updating watchlist item:", error); // Log any errors
-    next(error);                           // Pass error to next middleware
+    console.error("Error updating watchlist item:", error);
+    next(error);
   }
 };
