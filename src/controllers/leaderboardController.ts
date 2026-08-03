@@ -19,29 +19,46 @@ const canViewPortfolio = (viewerId: number, ownerId: number): boolean => {
 
 // Shared SQL for valuing a portfolio.
 //
-// invested      = what was paid: sum(price_at_time * quantity)
-// current_value = what it is worth now, using the cached last price per symbol
-//                 and falling back to the purchase price when we have never
-//                 fetched that symbol (which scores it as a flat 0%).
+// Performance is measured from the TRADE LOG, not from whatever positions
+// happen to be open right now. Valuing only open positions was wrong in both
+// directions: selling a winner erased the gain from your score, and deleting a
+// loser erased the loss. Either made the ranking meaningless.
 //
-// Reading last_price from the `stocks` cache rather than calling Polygon keeps
-// the leaderboard to a single query no matter how many accounts it lists.
-const VALUATION_SELECT = `
-  COALESCE(SUM(w.price_at_time * w.quantity), 0) AS invested,
-  COALESCE(SUM(COALESCE(s.last_price, w.price_at_time) * w.quantity), 0) AS current_value,
-  COUNT(w.id)::int AS holdings_count
+//   invested      = every buy ever made      (capital actually deployed)
+//   current_value = open positions at latest price + proceeds from every sale
+//   realized      = proceeds from sales, shown separately
+//
+// A symbol with no cached price falls back to its purchase price, which scores
+// it flat rather than inventing a move.
+const TRADE_TOTALS = `
+  SELECT user_id,
+         SUM(CASE WHEN action = 'buy'  THEN quantity * price ELSE 0 END) AS cost_basis,
+         SUM(CASE WHEN action = 'sell' THEN quantity * price ELSE 0 END) AS proceeds
+  FROM trade_notes
+  GROUP BY user_id
+`;
+
+const OPEN_POSITIONS = `
+  SELECT w.user_id,
+         SUM(COALESCE(s.last_price, w.price_at_time) * w.quantity) AS open_value,
+         COUNT(w.id)::int AS holdings_count
+  FROM watchlist w
+  LEFT JOIN stocks s ON s.stock_symbol = w.stock_symbol
+  GROUP BY w.user_id
 `;
 
 // Turn the raw numeric strings pg returns into numbers plus a percentage.
 const summarise = (row: any) => {
   const invested = parseFloat(row.invested) || 0;
   const currentValue = parseFloat(row.current_value) || 0;
+  const realized = parseFloat(row.realized) || 0;
   const profit = currentValue - invested;
   // Guard against dividing by zero for accounts that hold nothing yet.
   const returnPct = invested > 0 ? (profit / invested) * 100 : 0;
   return {
     invested,
     current_value: currentValue,
+    realized,
     profit,
     return_pct: returnPct,
     holdings_count: row.holdings_count ?? 0,
@@ -56,11 +73,13 @@ export const getLeaderboard: RequestHandler = async (_req, res, next) => {
       SELECT u.id,
              u.display_name,
              u.created_at,
-             ${VALUATION_SELECT}
+             COALESCE(t.cost_basis, 0) AS invested,
+             COALESCE(o.open_value, 0) + COALESCE(t.proceeds, 0) AS current_value,
+             COALESCE(t.proceeds, 0) AS realized,
+             COALESCE(o.holdings_count, 0) AS holdings_count
       FROM users u
-      LEFT JOIN watchlist w ON w.user_id = u.id
-      LEFT JOIN stocks s    ON s.stock_symbol = w.stock_symbol
-      GROUP BY u.id, u.display_name, u.created_at
+      LEFT JOIN (${TRADE_TOTALS}) t ON t.user_id = u.id
+      LEFT JOIN (${OPEN_POSITIONS}) o ON o.user_id = u.id
     `);
 
     const entries = result.rows
@@ -146,10 +165,13 @@ export const getUserPortfolio: RequestHandler = async (req, res, next) => {
     // Recompute the summary with the same SQL the leaderboard uses, so a user's
     // numbers can never disagree between the two screens.
     const summaryResult = await pool.query(
-      `SELECT ${VALUATION_SELECT}
-       FROM watchlist w
-       LEFT JOIN stocks s ON s.stock_symbol = w.stock_symbol
-       WHERE w.user_id = $1`,
+      `SELECT COALESCE(t.cost_basis, 0) AS invested,
+              COALESCE(o.open_value, 0) + COALESCE(t.proceeds, 0) AS current_value,
+              COALESCE(t.proceeds, 0) AS realized,
+              COALESCE(o.holdings_count, 0) AS holdings_count
+       FROM (SELECT $1::int AS uid) me
+       LEFT JOIN (${TRADE_TOTALS}) t ON t.user_id = me.uid
+       LEFT JOIN (${OPEN_POSITIONS}) o ON o.user_id = me.uid`,
       [ownerId]
     );
 

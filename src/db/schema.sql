@@ -61,3 +61,33 @@ CREATE TABLE IF NOT EXISTS trade_notes (
 
 CREATE INDEX IF NOT EXISTS idx_trade_notes_user   ON trade_notes(user_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trade_notes_symbol ON trade_notes(stock_symbol);
+
+-- ---------------------------------------------------------------------------
+-- Trade integrity
+-- ---------------------------------------------------------------------------
+
+-- Links a holding to the buy entry that created it, so a correction or a
+-- removal can keep the journal and the position in step instead of letting
+-- them drift apart.
+ALTER TABLE watchlist
+  ADD COLUMN IF NOT EXISTS trade_note_id INTEGER REFERENCES trade_notes(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_watchlist_trade_note ON watchlist(trade_note_id);
+
+-- Value constraints. These were missing, which allowed a negative quantity and
+-- a rewritten cost basis to be stored. Added as named constraints so this file
+-- stays re-runnable against an existing database.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'watchlist_quantity_positive') THEN
+    ALTER TABLE watchlist ADD CONSTRAINT watchlist_quantity_positive CHECK (quantity > 0);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'watchlist_price_positive') THEN
+    ALTER TABLE watchlist ADD CONSTRAINT watchlist_price_positive CHECK (price_at_time > 0);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'trade_notes_price_positive') THEN
+    ALTER TABLE trade_notes ADD CONSTRAINT trade_notes_price_positive CHECK (price > 0);
+  END IF;
+END $$;
