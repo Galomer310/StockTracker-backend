@@ -45,6 +45,18 @@ export class UpstreamThrottledError extends Error {
   }
 }
 
+/**
+ * The endpoint exists but is not available on our plan. Distinct from
+ * throttling because retrying will never succeed - only upgrading will.
+ * TIME_SERIES_INTRADAY is the one that bites: it is premium-only.
+ */
+export class UpstreamUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UpstreamUnavailableError";
+  }
+}
+
 export class UpstreamDataError extends Error {
   constructor(message: string) {
     super(message);
@@ -132,7 +144,14 @@ const request = async (params: Record<string, string>): Promise<any> => {
 
     // Alpha Vantage signals problems with a 200 and one of these keys.
     if (data && typeof data === "object") {
-      if (data["Information"]) throw new UpstreamThrottledError(String(data["Information"]));
+      const info = data["Information"] ? String(data["Information"]) : "";
+      // Both throttling and "you need to pay for this" arrive under the same
+      // key, but they need opposite handling: one is worth retrying, the other
+      // never will be.
+      if (info && /premium endpoint/i.test(info)) {
+        throw new UpstreamUnavailableError(info);
+      }
+      if (info) throw new UpstreamThrottledError(info);
       if (data["Note"]) throw new UpstreamThrottledError(String(data["Note"]));
       if (data["Error Message"]) throw new UpstreamDataError(String(data["Error Message"]));
     }
@@ -216,6 +235,39 @@ export const fetchDailyBars = async (symbol: string, days: number): Promise<Bar[
       v: num(bar["5. volume"]),
     }))
     .filter((bar) => bar.t >= cutoff)
+    .sort((a, b) => a.t - b.t);
+};
+
+// TIME_SERIES_INTRADAY - intraday bars for a "last day" view.
+//
+// PREMIUM ONLY. On the free plan this returns "This is a premium endpoint",
+// which surfaces as UpstreamUnavailableError. It is kept because the code is
+// correct and one env flag enables it on a paid plan; see ALPHA_VANTAGE_PREMIUM
+// in the aggregates controller.
+export const fetchIntradayBars = async (
+  symbol: string,
+  interval: "5min" | "15min" | "30min" | "60min" = "5min"
+): Promise<Bar[]> => {
+  const data = await request({
+    function: "TIME_SERIES_INTRADAY",
+    symbol,
+    interval,
+    outputsize: "compact",
+  });
+  const series = data?.[`Time Series (${interval})`];
+  if (!series) throw new UpstreamDataError(`No intraday series returned for ${symbol}`);
+
+  return Object.entries(series)
+    .map(([stamp, bar]: [string, any]) => ({
+      // Timestamps are US/Eastern wall-clock without a zone; treating them as
+      // UTC keeps ordering correct, which is all the chart needs.
+      t: new Date(stamp.replace(" ", "T") + "Z").getTime(),
+      o: num(bar["1. open"]),
+      h: num(bar["2. high"]),
+      l: num(bar["3. low"]),
+      c: num(bar["4. close"]),
+      v: num(bar["5. volume"]),
+    }))
     .sort((a, b) => a.t - b.t);
 };
 

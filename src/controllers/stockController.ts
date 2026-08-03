@@ -5,12 +5,14 @@ import { getMarketStatus as computeMarketStatus } from "../services/marketClock"
 import {
   fetchQuote,
   fetchDailyBars,
+  fetchIntradayBars,
   fetchOverview,
   fetchNews,
   searchSymbols,
   getQuotaStatus,
   QuotaExhaustedError,
   UpstreamThrottledError,
+  UpstreamUnavailableError,
   UpstreamDataError,
 } from "../services/alphaVantage";
 
@@ -33,6 +35,7 @@ import {
 const TTL = {
   quote: 60 * 60 * 1000,            // 1 hour
   bars: 12 * 60 * 60 * 1000,        // 12 hours
+  intraday: 30 * 60 * 1000,         // 30 minutes - moves during the session
   overview: 7 * 24 * 60 * 60 * 1000, // 7 days
   news: 6 * 60 * 60 * 1000,         // 6 hours
   search: 24 * 60 * 60 * 1000,      // 24 hours
@@ -85,6 +88,15 @@ const withCache = async <T>(
             ? "Daily market data limit reached. Alpha Vantage allows 25 requests per day on the free plan; it resets at midnight UTC."
             : "Market data provider is throttling requests. Please try again shortly.",
         quota: getQuotaStatus(),
+      });
+      return null;
+    }
+
+    // Premium-gated endpoint: say so plainly instead of suggesting a retry.
+    if (error instanceof UpstreamUnavailableError) {
+      res.status(501).json({
+        error:
+          "This data is not available on the current Alpha Vantage plan. Intraday prices require a premium subscription.",
       });
       return null;
     }
@@ -192,13 +204,27 @@ export const getTickerNews = async (req: Request, res: Response): Promise<void> 
 };
 
 // GET /stocks/:ticker/aggregates?days=30
-// Historical daily bars. Kept in the { t, o, h, l, c, v } shape the charts
-// already consume, so the client charting code is unchanged.
+// Price history in the { t, o, h, l, c, v } shape the charts already consume.
+// A one-day range uses intraday bars, since a single daily bar would render as
+// one point; everything longer uses daily bars.
 export const getAggregates = async (req: Request, res: Response): Promise<void> => {
   const ticker = String(req.params.ticker || "").toUpperCase();
   const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 730);
 
-  // Bucket the cache key so 30d and 90d do not thrash one another.
+  // Intraday is a premium Alpha Vantage endpoint, so it is off unless the
+  // account has been upgraded. Without it a 1-day request falls through to
+  // daily bars below, which is the most the free plan can give.
+  if (days <= 1 && process.env.ALPHA_VANTAGE_PREMIUM === "true") {
+    const result = await withCache(res, `intraday:${ticker}`, TTL.intraday, () =>
+      fetchIntradayBars(ticker, "5min")
+    );
+    if (!result) return;
+    send(res, { bars: result.value, interval: "5min" }, result.state);
+    return;
+  }
+
+  // Bucket the cache key so 30d and 90d do not thrash one another, and so a
+  // 30-day view can be served from an already-fetched 90-day window.
   const bucket = days <= 7 ? "7" : days <= 30 ? "30" : days <= 90 ? "90" : days <= 365 ? "365" : "730";
 
   const result = await withCache(res, `bars:${ticker}:${bucket}`, TTL.bars, () =>
@@ -208,7 +234,7 @@ export const getAggregates = async (req: Request, res: Response): Promise<void> 
 
   // Trim the cached bucket down to exactly what was asked for.
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  send(res, { bars: result.value.filter((bar) => bar.t >= cutoff) }, result.state);
+  send(res, { bars: result.value.filter((bar) => bar.t >= cutoff), interval: "1day" }, result.state);
 };
 
 // GET /stocks/search?keywords=micro
