@@ -95,10 +95,13 @@ export const refreshToken = async (req: Request, res: Response) => {
     // Verify the refresh token using your REFRESH_SECRET
     const payload = jwt.verify(refreshToken, process.env.REFRESH_SECRET as string) as JwtPayload;
 
-    // Generate a new refresh token with a 2-hour expiration
+    // Issue a fresh access token (1h) so the client can keep making authenticated calls
+    const newAccessToken = generateAccessToken(payload.userId);
+    // Rotate the refresh token as well (4h)
     const newRefreshToken = generateRefreshToken(payload.userId);
 
-    return res.json({ refreshToken: newRefreshToken });
+    // Return both tokens — the client replaces its stored pair with these
+    return res.json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
   } catch (error) {
     return res.status(401).json({ error: "Invalid refresh token" });
   }
