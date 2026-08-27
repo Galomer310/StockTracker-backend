@@ -14,6 +14,38 @@ CREATE TABLE IF NOT EXISTS users (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Portfolios.
+--
+-- A user holds up to MAX_PORTFOLIOS of these (3 today, more on paid tiers
+-- later), and every holding and every trade belongs to exactly one.
+--
+-- Each starts with a fixed amount of cash. That is what makes the numbers on
+-- this site mean anything: a position can only be opened with money the
+-- portfolio actually has, so "23% of the book in NVDA" is a real weight rather
+-- than an artefact of someone typing in an unlimited number of shares.
+--
+--   starting_balance  what the portfolio opened with. Never changes, so it is
+--                     the honest denominator for return: a portfolio cannot
+--                     improve its percentage by having more paid in.
+--   cash              what is left to deploy. Falls on every buy, rises on
+--                     every sale, and is never allowed below zero.
+--
+-- Equity is cash + the market value of the open positions; return is measured
+-- against starting_balance.
+CREATE TABLE IF NOT EXISTS portfolios (
+  id                SERIAL PRIMARY KEY,
+  user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name              TEXT NOT NULL,
+  starting_balance  NUMERIC(14,4) NOT NULL,
+  cash              NUMERIC(14,4) NOT NULL CHECK (cash >= 0),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- Two portfolios called "Growth" under one account would be indistinguishable
+  -- in the switcher and on the leaderboard.
+  UNIQUE (user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_portfolios_user ON portfolios(user_id);
+
 -- Cache of the most recent close per symbol, refreshed at most every 24h.
 -- stock_symbol is the primary key so the controllers' ON CONFLICT upsert works.
 CREATE TABLE IF NOT EXISTS stocks (
@@ -73,6 +105,58 @@ ALTER TABLE watchlist
   ADD COLUMN IF NOT EXISTS trade_note_id INTEGER REFERENCES trade_notes(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_watchlist_trade_note ON watchlist(trade_note_id);
+
+-- Which portfolio each holding and each trade belongs to.
+--
+-- Added as nullable so this file stays re-runnable, then tightened to NOT NULL
+-- by the migration once every row has an owner. Deleting a portfolio takes its
+-- positions and its history with it.
+ALTER TABLE watchlist
+  ADD COLUMN IF NOT EXISTS portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE CASCADE;
+ALTER TABLE trade_notes
+  ADD COLUMN IF NOT EXISTS portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_watchlist_portfolio  ON watchlist(portfolio_id);
+CREATE INDEX IF NOT EXISTS idx_trade_notes_portfolio ON trade_notes(portfolio_id, occurred_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- The feed
+-- ---------------------------------------------------------------------------
+--
+-- There is deliberately no `feed_posts` table. A post IS a trade: the feed is
+-- built by reading trade_notes directly, so a buy or a sell appears the moment
+-- it is recorded and can never drift out of step with the journal. Copying
+-- each trade into a second table would create exactly that drift, and would
+-- also leave orphaned posts behind when a mistyped trade is removed.
+--
+-- Both tables below therefore hang off trade_notes(id), and cascade: removing
+-- a mistyped trade inside its 60 second window takes its post, its reactions
+-- and its replies with it.
+
+-- One reaction per person per post. The UNIQUE constraint is what makes
+-- reacting idempotent - changing your mind updates the row rather than
+-- stacking a second vote, and reacting the same way twice clears it.
+CREATE TABLE IF NOT EXISTS feed_reactions (
+  id            SERIAL PRIMARY KEY,
+  trade_note_id INTEGER NOT NULL REFERENCES trade_notes(id) ON DELETE CASCADE,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reaction      TEXT NOT NULL,            -- 'like', 'dislike', or one emoji from the allowlist
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (trade_note_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_feed_reactions_post ON feed_reactions(trade_note_id);
+
+-- Replies to a post.
+CREATE TABLE IF NOT EXISTS feed_comments (
+  id            SERIAL PRIMARY KEY,
+  trade_note_id INTEGER NOT NULL REFERENCES trade_notes(id) ON DELETE CASCADE,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body          TEXT NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_feed_comments_post ON feed_comments(trade_note_id, created_at);
 
 -- Value constraints. These were missing, which allowed a negative quantity and
 -- a rewritten cost basis to be stored. Added as named constraints so this file

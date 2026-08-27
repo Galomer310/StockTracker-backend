@@ -53,6 +53,19 @@ export const socialLimiter = rateLimit({
   message: { error: "Too many leaderboard requests. Please slow down." },
 });
 
+// The feed. Reads are one query per page load, but writes are one per tap on a
+// reaction, so the ceiling is higher than the social limiter's: a user flicking
+// through the timeline liking things should never be throttled, while a script
+// hammering the reaction endpoint still is.
+export const feedLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 200,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: { error: "Too many feed requests. Please slow down." },
+});
+
 // --- Authentication limiters -------------------------------------------------
 //
 // These routes run before any token exists, so there is no user id to key on

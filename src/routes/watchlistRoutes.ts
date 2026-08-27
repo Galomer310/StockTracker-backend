@@ -1,5 +1,5 @@
 import express from "express";                 // Import express
-import { getWatchlist, addToWatchlist, sellHolding, removeFromWatchlist, updateWatchlistItem } from "../controllers/watchlistController"; // Import controllers for watchlist actions
+import { getWatchlist, addToWatchlist, sellHolding, removeFromWatchlist } from "../controllers/watchlistController"; // Import controllers for watchlist actions
 import { authenticateUser } from "../middleware/authMiddleware"; // Import authentication middleware
 import { watchlistLimiter, stockApiLimiter } from "../middleware/rateLimiter"; // Per-user limits
 
@@ -23,10 +23,10 @@ router.post("/", stockApiLimiter, addToWatchlist);
 // Distinct from DELETE, which removes a mistyped row without logging a trade.
 router.post("/:id/sell", sellHolding);
 
-// DELETE route: remove a mistyped entry, inside the correction window only
+// DELETE route: take back a buy, within 60 seconds of making it.
+//
+// There is no PUT. A recorded trade cannot be edited: the only ways to change
+// a position are to buy more or to sell, both of which are logged publicly.
 router.delete("/:id", removeFromWatchlist);
-
-// PUT route: correct a holding, inside the correction window only
-router.put("/:id", updateWatchlistItem);
 
 export default router;                         // Export the router

@@ -52,7 +52,11 @@ export const corsOptions: CorsOptions = {
     return callback(new CorsError(origin));
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  // X-Portfolio-Id carries which of the user's portfolios the request acts on.
+  // A header the browser is not told it may send is stripped at the preflight,
+  // so omitting it here would make every trade fail with "no portfolio
+  // selected" and nothing in the server logs to explain why.
+  allowedHeaders: ["Content-Type", "Authorization", "X-Portfolio-Id"],
   // Without this the client cannot read any of these, however faithfully the
   // server sets them.
   exposedHeaders: [

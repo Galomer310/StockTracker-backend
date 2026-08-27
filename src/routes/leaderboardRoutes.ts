@@ -1,5 +1,5 @@
 import express from "express";                 // Import express
-import { getLeaderboard, getUserPortfolio, getUserJournal } from "../controllers/leaderboardController";
+import { getLeaderboard, getPortfolio, getPortfolioJournal } from "../controllers/leaderboardController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { socialLimiter } from "../middleware/rateLimiter";       // Per-user read limit
 
@@ -9,14 +9,17 @@ const router = express.Router();               // Create a new router instance
 // authenticateUser runs first so the limiter can key on the user id.
 router.use(authenticateUser, socialLimiter);
 
-// GET /social/leaderboard - every account ranked by percentage return
+// GET /social/leaderboard - every portfolio ranked by percentage return
 router.get("/leaderboard", getLeaderboard);
 
-// GET /social/users/:id/portfolio - one account's holdings and summary.
-// Works for your own id too, which the compare view relies on.
-router.get("/users/:id/portfolio", getUserPortfolio);
+// The unit is the portfolio, not the account: one user may run three, and each
+// is ranked, viewed and compared on its own.
 
-// GET /social/users/:id/journal - the owner's recorded trades and reasoning
-router.get("/users/:id/journal", getUserJournal);
+// GET /social/portfolios/:id - one portfolio's holdings and summary.
+// Works for your own id too, which the compare view relies on.
+router.get("/portfolios/:id", getPortfolio);
+
+// GET /social/portfolios/:id/journal - its recorded trades and reasoning
+router.get("/portfolios/:id/journal", getPortfolioJournal);
 
 export default router;                         // Export the router

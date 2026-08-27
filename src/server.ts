@@ -7,6 +7,8 @@ import authRoutes from "./routes/authRoutes";  // Import authentication routes
 import stockRoutes from "./routes/stockRoutes"; // Import stock routes
 import watchlistRoutes from "./routes/watchlistRoutes"; // Import watchlist routes
 import socialRoutes from "./routes/leaderboardRoutes"; // Import leaderboard and public portfolio routes
+import feedRoutes from "./routes/feedRoutes";  // Import the shared trade feed routes
+import portfolioRoutes from "./routes/portfolioRoutes"; // Import the user's own portfolios
 import { corsOptions, getAllowedOrigins } from "./config/cors"; // Origin allowlist + exposed headers
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler"; // JSON errors
 
@@ -52,8 +54,10 @@ app.use(cookieParser());                       // Parse cookies attached to clie
 // API Routes: mount the routers on specific base paths
 app.use("/auth", authRoutes);                  // Routes for user authentication
 app.use("/stocks", stockRoutes);               // Routes for fetching stock data
+app.use("/portfolios", portfolioRoutes);       // The caller's own portfolios and their cash
 app.use("/watchlist", watchlistRoutes);        // Routes for managing watchlist items
 app.use("/social", socialRoutes);              // Leaderboard and viewing other users' portfolios
+app.use("/feed", feedRoutes);                  // Shared timeline of everyone's trades
 
 // Error handling. These must come after all routes: Express selects the first
 // matching handler, so a 404 registered earlier would swallow real routes, and
