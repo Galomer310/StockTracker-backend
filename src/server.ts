@@ -2,7 +2,6 @@ import express from "express";                 // Import express framework
 import dotenv from "dotenv";                   // Import dotenv to load environment variables
 import cors from "cors";                       // Import cors middleware for handling cross-origin requests
 import helmet from "helmet";                   // Security response headers
-import cookieParser from "cookie-parser";      // Import cookie-parser middleware to parse cookies
 import authRoutes from "./routes/authRoutes";  // Import authentication routes
 import stockRoutes from "./routes/stockRoutes"; // Import stock routes
 import watchlistRoutes from "./routes/watchlistRoutes"; // Import watchlist routes
@@ -49,7 +48,6 @@ app.use(
 );
 app.use(express.json());                       // Parse incoming JSON payloads
 app.use(cors(corsOptions));                    // Restrict origins and expose our custom headers
-app.use(cookieParser());                       // Parse cookies attached to client requests
 
 // API Routes: mount the routers on specific base paths
 app.use("/auth", authRoutes);                  // Routes for user authentication

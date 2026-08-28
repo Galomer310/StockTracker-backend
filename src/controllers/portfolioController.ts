@@ -73,26 +73,6 @@ export const publicPortfolio = (full: ReturnType<typeof valuePortfolio>) => ({
   created_at: full.created_at,
 });
 
-// Loads one portfolio and checks it belongs to the caller. Every write path
-// goes through this, so ownership is enforced in one place rather than being
-// re-derived (and eventually forgotten) in each controller.
-export const loadOwnPortfolio = async (
-  portfolioId: number,
-  userId: number,
-  client: { query: typeof pool.query } = pool
-): Promise<{ id: number; name: string; cash: number } | null> => {
-  const result = await client.query(
-    "SELECT id, name, cash FROM portfolios WHERE id = $1 AND user_id = $2",
-    [portfolioId, userId]
-  );
-  if (result.rows.length === 0) return null;
-  return {
-    id: result.rows[0].id,
-    name: result.rows[0].name,
-    cash: parseFloat(result.rows[0].cash),
-  };
-};
-
 // GET /portfolios
 // Every portfolio the caller owns, valued, newest last. This is what fills the
 // switcher in the personal area.

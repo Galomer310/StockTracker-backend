@@ -60,8 +60,3 @@ export const setCached = (key: string, value: unknown, ttlMs: number): void => {
   }
   store.set(key, { value, expiresAt: Date.now() + ttlMs });
 };
-
-// Exposed for tests and diagnostics.
-export const clearCache = (): void => {
-  store.clear();
-};
