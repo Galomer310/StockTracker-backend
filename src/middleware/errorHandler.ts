@@ -16,10 +16,19 @@ import { CorsError } from "../config/cors";
    response and an information leak.
 
    Everything below returns JSON. Full detail is logged server-side; the client
-   sees a stack trace only when NODE_ENV is not production.
+   sees a stack trace only when NODE_ENV is explicitly "development".
    =========================================================================== */
 
-const isProduction = () => process.env.NODE_ENV === "production";
+/* Fails closed.
+   This asked whether NODE_ENV was "production" and leaked stack traces
+   whenever it was not. Nothing in this repo sets NODE_ENV, so the variable
+   being absent - a missed setting on a host, a shell that did not export
+   it - silently turned debug output on in front of real users, handing
+   file paths and internal structure to anyone who could provoke a 500.
+
+   Inverted: detail is included only when development is asked for
+   explicitly. The unset case is now the safe one. */
+const isDebug = () => process.env.NODE_ENV === "development";
 
 // Postgres error codes worth translating rather than reporting as a 500.
 // https://www.postgresql.org/docs/current/errcodes-appendix.html
@@ -107,9 +116,9 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   res.status(status).json({
     error: message,
     ...(code ? { code } : {}),
-    // Never in production: this is the leak the default handler caused.
-    ...(isProduction()
-      ? {}
-      : { detail: anyErr?.message, stack: anyErr?.stack?.split("\n").slice(0, 6) }),
+    // Only when NODE_ENV is explicitly "development".
+    ...(isDebug()
+      ? { detail: anyErr?.message, stack: anyErr?.stack?.split("\n").slice(0, 6) }
+      : {}),
   });
 };

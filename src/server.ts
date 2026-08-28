@@ -13,6 +13,50 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler"; // JS
 
 dotenv.config();                               // Load environment variables from .env file
 
+/* ===========================================================================
+   Startup checks
+   ---------------------------------------------------------------------------
+   The signing secrets were read with `process.env.JWT_SECRET as string`,
+   which is a promise to the type checker and nothing more. Start without
+   them and the process comes up healthy, serves the landing page, and fails
+   only when the first person tries to sign in.
+
+   Worse is a secret that is present but weak. jsonwebtoken will happily sign
+   with "secret", and every token it produces is then forgeable by anyone who
+   guesses it - which is not a thing to discover in production.
+
+   Refusing to boot is the right failure: a deploy that dies immediately gets
+   noticed and rolled back, while one that half-works does not.
+   =========================================================================== */
+const MIN_SECRET_LENGTH = 32;
+
+const requireSecret = (name: string): void => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `${name} is not set. Generate one with: node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`
+    );
+  }
+  if (value.length < MIN_SECRET_LENGTH) {
+    throw new Error(
+      `${name} is only ${value.length} characters; at least ${MIN_SECRET_LENGTH} are required.`
+    );
+  }
+};
+
+for (const name of ["JWT_SECRET", "REFRESH_SECRET", "DATABASE_URL"]) {
+  requireSecret(name);
+}
+
+// The two token secrets must differ. If they are the same value, an access
+// token verifies as a refresh token, so a stolen access token can be traded
+// for a fresh pair indefinitely and the shorter access lifetime buys nothing.
+if (process.env.JWT_SECRET === process.env.REFRESH_SECRET) {
+  throw new Error(
+    "JWT_SECRET and REFRESH_SECRET must be different values, or an access token can be replayed as a refresh token."
+  );
+}
+
 const app = express();                         // Initialize the Express application
 
 // The auth rate limiters bucket by client IP. Behind a load balancer (Render,
@@ -46,7 +90,11 @@ app.use(
     contentSecurityPolicy: false,
   })
 );
-app.use(express.json());                       // Parse incoming JSON payloads
+// Capped well below the 100kb default. Nothing this API accepts is large -
+// the biggest body is a trade with a written rationale - so a request bigger
+// than this is either a mistake or someone probing for a way to make the
+// server do expensive parsing work cheaply.
+app.use(express.json({ limit: "16kb" }));
 app.use(cors(corsOptions));                    // Restrict origins and expose our custom headers
 
 // API Routes: mount the routers on specific base paths
