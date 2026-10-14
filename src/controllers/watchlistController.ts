@@ -40,8 +40,9 @@ const MAX_NOTE_LENGTH = 2000;
 // it closes the record stands, and the only way out is a sale.
 //
 // Measured from when the buy was RECORDED, not from the date it is dated.
-// Those are the same moment for an ordinary purchase, but a manual entry can
-// be backdated to a trade made years ago - and measuring from added_at there
+// Those are the same moment for an ordinary purchase, but manual entries -
+// no longer accepted, though older rows remain - could be backdated to a
+// trade made years ago, and measuring from added_at there
 // would close the window before the row even existed, leaving a mistyped
 // import permanently stuck in the portfolio.
 const REMOVAL_WINDOW_MS = 60 * 1000; // 60 seconds
@@ -179,8 +180,21 @@ export const getWatchlist: RequestHandler = async (req, res, next) => {
 // Records a buy: creates the holding and its journal entry, and pays for it
 // out of the portfolio's cash.
 export const addToWatchlist: RequestHandler = async (req, res, next): Promise<void> => {
-  const { stock_symbol, quantity, industry, price_at_time, added_at, manual, note } = req.body;
+  const { stock_symbol, quantity, industry, manual, note } = req.body;
   const userId = (req as any).user.id;
+
+  // Manual entry used to take its price and date from the request, so anyone
+  // could "buy" at a price of their choosing on a day of their choosing and
+  // rank on the return. Every position now opens at the market price, today.
+  // Refused rather than ignored: quietly buying at today's price would record
+  // a trade the caller did not ask for.
+  if (manual) {
+    res.status(400).json({
+      error: "Manual entry is no longer supported. Positions open at the market price.",
+      code: "MANUAL_ENTRY_REMOVED",
+    });
+    return;
+  }
 
   if (!stock_symbol) {
     res.status(400).json({ error: "Stock symbol is required" });
@@ -205,21 +219,8 @@ export const addToWatchlist: RequestHandler = async (req, res, next): Promise<vo
 
   const client = await pool.connect();
   try {
-    let currentPrice: number;
-    let timestamp: string;
-
-    if (manual) {
-      // Manual entry supplies its own price and (possibly backdated) date
-      if (!price_at_time || !added_at) {
-        res.status(400).json({ error: "Manual entry requires price and added_at date." });
-        return;
-      }
-      currentPrice = parseFloat(price_at_time);
-      timestamp = added_at;
-    } else {
-      currentPrice = await marketPrice(symbol);
-      timestamp = new Date().toISOString();
-    }
+    const currentPrice = await marketPrice(symbol);
+    const timestamp = new Date().toISOString();
 
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
       res.status(400).json({ error: "Price must be greater than zero" });
