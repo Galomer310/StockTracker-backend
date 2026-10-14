@@ -13,15 +13,16 @@ router.get("/", getWatchlist);
 
 // POST route: record a buy.
 //
-// This is the one portfolio route that can spend Alpha Vantage budget: an
-// uncached symbol costs a live quote. It therefore also carries the market
-// data limiter, so a user's total spend is capped across /stocks and
-// /watchlist together instead of being bypassable through this route.
+// Buys and sells are the portfolio routes that can spend Alpha Vantage
+// budget: both execute at the market price, and an uncached symbol costs a
+// live quote. They therefore also carry the market data limiter, so a user's
+// total spend is capped across /stocks and /watchlist together instead of
+// being bypassable through these routes.
 router.post("/", stockApiLimiter, addToWatchlist);
 
 // POST route: sell all or part of a holding, recording the trade and its note.
 // Distinct from DELETE, which removes a mistyped row without logging a trade.
-router.post("/:id/sell", sellHolding);
+router.post("/:id/sell", stockApiLimiter, sellHolding);
 
 // DELETE route: take back a buy, within 60 seconds of making it.
 //
