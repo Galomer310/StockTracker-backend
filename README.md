@@ -34,6 +34,9 @@ The frontend lives in
   for the product spec's metrics: returns that exclude game-earned capital,
   volatility, drawdown, concentration, risk score, exposures, benchmarks and
   the Player Card figures. Unit-tested; not yet wired to every screen.
+- **Player Card.** One endpoint with the player's identity, portfolio counts
+  and returns, and the locks the spec sets. Level and XP are withheld until
+  their rules are defined.
 
 The product spec, the gap between it and this code, and the decisions taken
 so far are in [`docs/PRODUCT-SPEC-AND-GAP.md`](docs/PRODUCT-SPEC-AND-GAP.md).
@@ -151,6 +154,12 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | POST | `/feed/:id/reactions` | React to a post. |
 | POST | `/feed/:id/comments` | Reply to a post. |
 | DELETE | `/feed/comments/:commentId` | Delete your reply. |
+
+### Players — `/players`
+
+| Method | Path | |
+|---|---|---|
+| GET | `/players/me/card` | Your Player Card. Every figure is calculated on the server; figures without data or rules yet come back as locked or unavailable, with the reason. |
 
 ### Market data — `/stocks`
 
