@@ -41,7 +41,9 @@ export type LockReason =
   | "requires_min_active_portfolios"
   | "no_active_portfolio_above_threshold";
 
-export type UnavailableReason = "missing_data" | "no_active_portfolios";
+// not_defined: the rules behind the figure are deliberately not written yet
+// (XP, levels and titles), so it is withheld rather than invented.
+export type UnavailableReason = "missing_data" | "no_active_portfolios" | "not_defined";
 
 export type CardValue<T> =
   | { state: "available"; value: T }

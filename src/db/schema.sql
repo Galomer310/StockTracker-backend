@@ -175,3 +175,39 @@ BEGIN
     ALTER TABLE trade_notes ADD CONSTRAINT trade_notes_price_positive CHECK (price > 0);
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Player Card (docs/PRODUCT-SPEC-AND-GAP.md, Parts 3-4)
+-- ---------------------------------------------------------------------------
+
+-- Player identity. All four start empty: nothing sets them until the profile
+-- editing endpoint exists. The nickname is meant to be unique, but whether
+-- uniqueness ignores case - and the other nickname rules - is not decided, so
+-- no unique index yet. The bio limit is the spec's own.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname   TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bio        TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+-- Portfolio status. Active or closed only: "archived" is named in the spec but
+-- not defined. Every existing portfolio is active, and there is no way to
+-- close one yet, because what closing does to open positions is not decided.
+-- closed_at is set exactly when the status is closed.
+ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_bio_length') THEN
+    ALTER TABLE users ADD CONSTRAINT users_bio_length CHECK (char_length(bio) <= 100);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'portfolios_status_valid') THEN
+    ALTER TABLE portfolios ADD CONSTRAINT portfolios_status_valid CHECK (status IN ('active', 'closed'));
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'portfolios_closed_at_matches') THEN
+    ALTER TABLE portfolios ADD CONSTRAINT portfolios_closed_at_matches
+      CHECK ((status = 'closed') = (closed_at IS NOT NULL));
+  END IF;
+END $$;

@@ -8,6 +8,7 @@ import watchlistRoutes from "./routes/watchlistRoutes"; // Import watchlist rout
 import socialRoutes from "./routes/leaderboardRoutes"; // Import leaderboard and public portfolio routes
 import feedRoutes from "./routes/feedRoutes";  // Import the shared trade feed routes
 import portfolioRoutes from "./routes/portfolioRoutes"; // Import the user's own portfolios
+import playerRoutes from "./routes/playerRoutes"; // Import the Player Card routes
 import { corsOptions, getAllowedOrigins } from "./config/cors"; // Origin allowlist + exposed headers
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler"; // JSON errors
 
@@ -104,6 +105,7 @@ app.use("/portfolios", portfolioRoutes);       // The caller's own portfolios an
 app.use("/watchlist", watchlistRoutes);        // Routes for managing watchlist items
 app.use("/social", socialRoutes);              // Leaderboard and viewing other users' portfolios
 app.use("/feed", feedRoutes);                  // Shared timeline of everyone's trades
+app.use("/players", playerRoutes);             // Player Card
 
 // Error handling. These must come after all routes: Express selects the first
 // matching handler, so a 404 registered earlier would swallow real routes, and
