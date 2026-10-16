@@ -12,6 +12,7 @@
 
 export * from "./types";
 export * from "./config";
+export * from "./calendar";
 export * from "./returns";
 export * from "./volatility";
 export * from "./drawdown";

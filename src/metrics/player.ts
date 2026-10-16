@@ -15,8 +15,8 @@
    same figure by rule, so there is one function for both.
 
    When two active portfolios share the highest return, the one opened first
-   is chosen (then the lower id). The spec does not say; this only keeps the
-   choice stable, and matters only where a name is shown (9.5).
+   is chosen (then the lower id) - agreed 2026-10-16, since the spec does not
+   say. It matters only where a name is shown (9.5).
    =========================================================================== */
 
 import { MIN_ACTIVE_PORTFOLIOS_FOR_PLAYER_STATS, TOP_PORTFOLIO_MIN_RETURN } from "./config";
@@ -147,8 +147,10 @@ export const averageMonthToDateReturn = (portfolios: PortfolioSummary[]): CardVa
 // portfolio opened during the month - to the latest value in it. Flows are
 // excluded as everywhere else.
 //
-// The dates must already be in the time zone that defines the month; which
-// one that is has not been decided, so it is the caller's choice. A month
+// Months are Israel calendar months (MONTH_TIME_ZONE), so the series must be
+// dated with localDate() and the current month taken from localMonth(), both
+// in calendar.ts; dates in any other zone would put values near midnight in
+// the wrong month. A month
 // with no value yet after its baseline has a return of 0. null for a series
 // with nothing in or before the month.
 export const monthToDateReturn = (series: NavPoint[], month: string): number | null => {

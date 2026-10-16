@@ -56,6 +56,11 @@ export const MIN_ACTIVE_PORTFOLIOS_FOR_PLAYER_STATS = 2;
 // return is strictly ABOVE this. 0.2 = 20%.
 export const TOP_PORTFOLIO_MIN_RETURN = 0.2;
 
+// Player Card: calendar months (9.4) begin at midnight in this time zone.
+// Israel time, decided 2026-10-16. An IANA name, so daylight saving is
+// handled by the runtime rather than by a fixed offset.
+export const MONTH_TIME_ZONE = "Asia/Jerusalem";
+
 // Risk classification, by inclusive upper bound. The spec states the bands in
 // whole numbers (0-20, 21-40, ...); a fractional score between two bands
 // (20.5) falls into the higher one.
