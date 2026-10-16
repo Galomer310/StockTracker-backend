@@ -5,8 +5,12 @@ recorded below in place of the truncated copy. Gap analysis revised the same
 day against the code on `main` plus the trade-integrity branches
 (`api-sell-at-market-price`, `ui-sell-at-market-price`).
 
-Parked for future work; not being implemented yet. Part 2 lists the rulings
-and the market-data decision needed before most of it can start.
+A separate, more detailed Player Card spec (Hebrew) was received 2026-10-16.
+It is recorded verbatim in Part 3, summarised in English with its own gap
+analysis in Part 4, and the Part 2 items it answers are marked there.
+
+Parked for future work; not being implemented yet. Parts 2 and 4 list the
+rulings and the market-data decision needed before most of it can start.
 
 ---
 
@@ -859,10 +863,13 @@ frontend pages and components, design tokens, chart layer.
    moment of each inflow, so it depends on NAV history. Still undecided:
    leaderboard or competition fairness when players hold different deployable
    capital.
-3. **Paid subscriptions — still open.** The spec says "paid subscribers" but
-   defines no price, billing, refunds, or what a follower gets versus a
-   subscriber. Stripe, webhooks and entitlement checks on every gated route
-   remain a separately scoped commercial and legal piece.
+3. **Paid subscriptions — partly answered by the Player Card spec (Part 4).**
+   $3/month, granting access to the creator's portfolios and holdings;
+   following is free and grants none of it. Still undefined: who receives the
+   money, billing, refunds. The Player Card spec also adds paid portfolio
+   tiers and paid-entry competitions with prize pools — see the legal note in
+   Part 4. Stripe, webhooks and entitlement checks on every gated route remain
+   a separately scoped commercial and legal piece.
 
 ## Rules the spec leaves undefined
 
@@ -908,18 +915,23 @@ before the dependent metric can be built.
    competitions, reward amounts, and which portfolio earned capital lands in.
    "Best Portfolio Gain" and "Average Return Across All Portfolios": whether
    closed or archived portfolios count, and how portfolios of very different
-   ages are weighted.
+   ages are weighted. *Partly answered in Part 4:* both averages and the best
+   portfolio use active portfolios only, equally weighted, with no
+   adjustment for age; medals and achievements are two separate banks. XP,
+   levels, titles and both banks' contents are explicitly deferred.
 9. **Portfolio status and labels.** What Active / Closed / Archived each
    allow; whether Risk Level on the card is the Risk Score classification;
    whether Category / Style is player-chosen or derived.
 10. **Permissions.** View Portfolios is subscriber-only, yet Module 2 defines
-    what non-subscribers see — where do they see it (the feed)? What does
-    following grant? Who sees follow-up notes?
+    what non-subscribers see — where do they see it (the feed)? Who sees
+    follow-up notes? *Answered in Part 4:* following grants no access to
+    holdings or subscriber content.
 
 ## Clashes with the current code
 
-- **Leaderboard.** Central to the current product; not mentioned in the spec.
-  Keep alongside competitions, or retire?
+- **Leaderboard.** Not mentioned in the main spec. *Answered in Part 4:* it
+  stays — the Player Card spec names it as how users discover players to
+  follow.
 - **60-second undo.** Deleting a buy inside the window removes its journal
   entry and feed post. Defensible as "the trade never happened", but it does
   remove a published rationale. Needs a ruling against the immutability rule.
@@ -997,5 +1009,969 @@ Build outward, not rewrite.
 1. The rulings listed under "Rules the spec leaves undefined".
 2. Payments scope (conflict 3), and leaderboard fairness under earned
    capital (conflict 2).
-3. Leaderboard and the 60-second undo (see "Clashes").
+3. The 60-second undo (see "Clashes").
 4. Market data and security master provider for phase 0.
+5. The Player Card questions in Part 4 — above all the UI language, and the
+   missing reference image.
+
+---
+
+# PART 3 — PLAYER CARD SPEC (as provided, Hebrew)
+
+> **Transcription note.** Received 2026-10-16 as pasted text, in Hebrew. It is
+> reproduced verbatim except that every heading is one level lower (`#`
+> became `##`, and so on), so its sections nest under this part instead of
+> colliding with the document's own. The reference image it calls the
+> mandatory basis for the design **has not been received**.
+
+<div dir="rtl">
+
+## PLAYER CARD – COMPLETE DESIGN & FUNCTIONAL SPECIFICATION
+
+### 1. מטרת המשימה
+
+בנה כרטיס שחקן (Player Card) עבור פלטפורמת השקעות חברתית המשלבת ניהול תיקי השקעות וירטואליים, תחרויות, הישגים מקצועיים, קהילה ומנגנון התקדמות במשחק (Gamification).
+
+כרטיס השחקן הוא עמוד הפרופיל המרכזי של כל משתמש בפלטפורמה. הוא מציג את זהותו, ביצועיו, הישגיו, פעילותו החברתית והתקדמותו במשחק.
+
+**תמונת הייחוס המצורפת היא הבסיס המחייב לעיצוב.**
+
+יש לשחזר את החלק המרכזי והימני בלבד בתמונה.
+
+יש להתעלם לחלוטין מהעמודה השמאלית הכוללת את התיבות "סיכום האפיון" ו"מרכיבי הכרטיס". עמודה זו אינה חלק מהאתר ואסור ליצור אותה.
+
+אין להוסיף רכיבים חדשים שלא הוגדרו באפיון, ואין לשנות את השפה העיצובית של הכרטיס.
+
+הכרטיס חייב להיות דינמי, מבוסס נתוני משתמש אמיתיים ומוכן לחיבור למנגנונים העתידיים של הפלטפורמה.
+
+---
+
+## 2. שפה עיצובית כללית – DESIGN SYSTEM
+
+### סגנון
+
+Dark Luxury Gaming Dashboard.
+
+העיצוב צריך לשלב תחושה של פלטפורמת השקעות מקצועית עם חוויית משחק יוקרתית, בדומה למערכות דירוג, הישגים ופרסים במשחקי פרימיום.
+
+### צבעים
+
+- רקע ראשי: שחור עמוק (#08090B בקירוב).
+- רקע כרטיסיות: שחור עם גוונים כהים של אפור.
+- גבולות כרטיסיות: זהב מתכתי.
+- כותרות: זהב בהיר.
+- מספרים רגילים: זהב.
+- תשואה חיובית: ירוק.
+- תשואה שלילית: אדום.
+- נקודות XP: סגול וזהב.
+- טקסט משני: אפור בהיר או שמנת.
+
+יש להשתמש בזהב בצורה אלגנטית, עם אפקט Glow עדין ולא מוגזם.
+
+### מאפיינים ויזואליים
+
+- מסגרות זהב דקות וזוהרות.
+- פינות מעוגלות.
+- צללים עדינים.
+- אייקונים מעוצבים בסגנון משחקי.
+- מדליות בעלות עומק חזותי.
+- טיפוגרפיה יוקרתית וברורה.
+- הפרדה חזותית בין האזורים.
+- אנימציות Hover עדינות בלבד.
+
+### פריסה
+
+העמוד יהיה בעברית ובכיווניות RTL.
+
+יש לשמור על המבנה הבא בגרסת Desktop:
+
+1. כותרת ראשית וכרטיס פרופיל רחב.
+2. שורה של שש כרטיסיות מדדים.
+3. שורה של שלושה אזורים:
+   - בצד ימין: השתתפות בתחרויות.
+   - במרכז: הישגים במשחק.
+   - בצד שמאל: מדליות מקצועיות.
+4. שורה תחתונה:
+   - בצד ימין: התקדמות במשחק.
+   - בצד שמאל: ביצועי שחקן.
+
+יש לשמור על פרופורציות דומות ככל האפשר לתמונת הייחוס.
+
+במסכים קטנים יש להתאים את הפריסה באופן רספונסיבי בלי לפגוע בקריאות הנתונים ובלי להסתיר מדדים.
+
+---
+
+## 3. אזור ראשון – PLAYER HEADER
+
+### מבנה חזותי
+
+בראש העמוד תופיע הכותרת:
+
+"כרטיס שחקן"
+
+מתחת לכותרת יוצג כרטיס פרופיל אופקי רחב.
+
+הכרטיס יחולק לשלושה חלקים:
+
+- שמאל: תמונת פרופיל.
+- מרכז: זהות השחקן, דרגה ותואר.
+- ימין: תיאור אישי (Bio).
+
+יש להפריד בין אזור הפרטים לבין ה-Bio באמצעות קו אנכי מוזהב, כפי שמופיע בתמונה.
+
+### 3.1 תמונת פרופיל
+
+השחקן יוכל:
+
+- להעלות תמונת פרופיל מהמכשיר שלו.
+- לבחור אווטאר מתוך גלריה שהפלטפורמה מספקת.
+- לבחור מתוך תמונות פרופיל ייחודיות ומעוצבות שהפלטפורמה מציעה.
+
+התמונה תוצג בעיגול גדול עם מסגרת זהב זוהרת.
+
+יש להגדיר תמונת ברירת מחדל למשתמש שלא בחר תמונה.
+
+### 3.2 זהות השחקן
+
+הזהות המרכזית היא כינוי המשחק (Username).
+
+הכינוי יוצג בגופן הגדול והבולט ביותר.
+
+לדוגמה:
+
+@growthhunter
+
+מתחת לכינוי ניתן להציג שם פרטי, אם המשתמש בחר להוסיף אותו.
+
+שם פרטי אינו חובה.
+
+כינוי המשחק הוא חובה.
+
+כל כינוי חייב להיות ייחודי במערכת, ואין לאפשר שני משתמשים בעלי אותו כינוי.
+
+בעת בחירת הכינוי יש לבצע בדיקת זמינות מול מאגר המשתמשים.
+
+הכינוי יהיה הזהות הראשית של השחקן בכל חלקי הפלטפורמה.
+
+### 3.3 דרגת שחקן – LEVEL
+
+מתחת לשם יופיע תג המציג את דרגת השחקן.
+
+דוגמה:
+
+Level 27
+
+הדרגה נקבעת אוטומטית לפי נקודות XP שהשחקן צבר.
+
+לא ניתן להזין או לערוך דרגה באופן ידני.
+
+נקודות XP יכולות להתקבל בעקבות:
+
+- התקדמות במשחק.
+- רווחיות וביצועי השקעות.
+- פעילות וניהול תיקי השקעות.
+- כמות תיקים.
+- עוקבים ומנויים.
+- מדליות מקצועיות.
+- הישגים במשחק.
+
+מנגנון הניקוד המדויק יוגדר בהמשך.
+
+### 3.4 תואר שחקן – PLAYER TITLE
+
+לצד הדרגה יוצג התואר של השחקן.
+
+דוגמה:
+
+Elite Investor
+
+התואר ייקבע אוטומטית באמצעות בנק תארים מרכזי.
+
+כל תואר יהיה משויך לרמה מסוימת או לטווח רמות.
+
+המערכת תשלוף את התואר המתאים בהתאם לרמת השחקן.
+
+יש להציג את התואר בתוך תג מעוצב עם אייקון, למשל כתר.
+
+אין לאפשר בחירה חופשית של תואר שאינו תואם את הדרגה.
+
+בנק התארים והשיוך לרמות יוגדרו בנפרד.
+
+### 3.5 תיאור אישי – BIO
+
+בצד ימין יוצג אזור בשם:
+
+"תיאור השחקן"
+
+המשתמש יוכל להזין תיאור אישי חופשי.
+
+מגבלת אורך: 100 תווים.
+
+יש להציג מונה תווים בזמן עריכה.
+
+ה-Bio אינו קשור לתואר שהמערכת מעניקה לשחקן.
+
+יש לאפשר למשתמש לערוך את הפרטים האישיים שלו, אך לא את הדרגה, התואר או ה-XP.
+
+---
+
+## 4. אזור שני – SIX MAIN STATISTICS
+
+מתחת לכרטיס הפרופיל יש להציג שש כרטיסיות בהתאם לתמונת הייחוס.
+
+כל כרטיסייה תכלול:
+
+- כותרת.
+- אייקון מתאים.
+- נתון מספרי בולט.
+- Tooltip המסביר את משמעות המדד.
+
+סדר הכרטיסיות מימין לשמאל:
+
+### 4.1 אחוז תשואה ממוצעת של כלל התיקים הפעילים
+
+המדד יציג את ממוצע אחוזי התשואה של כל תיקי ההשקעות הפעילים של השחקן.
+
+כל תיק בפלטפורמה מתחיל עם הון וירטואלי של $10,000.
+
+החישוב יהיה ממוצע חשבוני פשוט של אחוזי התשואה.
+
+לכל תיק יהיה משקל זהה.
+
+תשואת כל תיק נמדדת ממועד פתיחתו ועד למועד המדידה.
+
+אין לנרמל את התיקים לתקופה אחידה ואין לבצע התאמה למשך חיי התיק. עיתוי הכניסה להשקעה הוא חלק מביצועי השחקן.
+
+תיקים סגורים אינם נכללים בחישוב.
+
+**תנאי הצגה:**
+
+המדד ייפתח רק כאשר לשחקן יש לפחות שני תיקים פעילים.
+
+כאשר יש פחות משני תיקים פעילים, הכרטיסייה תישאר במקומה ותציג מנעול עם ההסבר:
+
+"נפתח מ־2 תיקים פעילים".
+
+### 4.2 הישגים במשחק – GAME ACHIEVEMENTS
+
+הצג את מספר ההישגים שהשחקן צבר במשחק.
+
+הישגים אלו יכולים להתקבל באמצעות:
+
+- תחרויות.
+- משימות חודשיות.
+- אתגרים.
+- פעילות במשחק.
+- פעילות חברתית.
+
+המדד יציג את מספר ההישגים הכולל, ללא קשר למספר ההישגים המוצגים בהמשך הכרטיס.
+
+### 4.3 מדליות מקצועיות – PROFESSIONAL MEDALS
+
+הצג את מספר המדליות המקצועיות שהשחקן קיבל.
+
+מדליות מקצועיות מתקבלות בעקבות השגת יעדים מקצועיים בתחום ההשקעות.
+
+יש לשמור על הפרדה בין מדליות מקצועיות לבין הישגים במשחק.
+
+### 4.4 מנויים – PAID SUBSCRIBERS
+
+הצג את מספר המנויים המשלמים הפעילים של השחקן.
+
+מחיר המנוי הוא $3 לחודש.
+
+מנוי משלם מקבל גישה לתיקי ההשקעות של היוצר ולמבנה האחזקות שלהם.
+
+רק משתמש בעל מנוי פעיל רשאי לגשת למידע המוגן של תיקי היוצר.
+
+יש לנהל את הרשאות הגישה בהתאם לסטטוס המנוי.
+
+מספר המנויים הוא נתון ברמת השחקן, ולא ברמת תיק בודד.
+
+### 4.5 עוקבים – FOLLOWERS
+
+הצג את מספר המשתמשים שעוקבים אחר השחקן בחינם.
+
+משתמש יכול לגלות תיק של שחקן דרך ה-Leaderboard, להתעניין ביוצר שלו ולבחור לעקוב אחריו.
+
+מעקב בחינם אינו מעניק גישה למבנה האחזקות או לתוכן התיקים המוגן למנויים.
+
+מספר העוקבים הוא נתון ברמת השחקן, ולא ברמת תיק.
+
+### 4.6 התיק המוביל – BEST PORTFOLIO GAIN
+
+הצג את אחוז התשואה המצטברת של התיק הפעיל בעל הביצועים הגבוהים ביותר של השחקן.
+
+יש לבחור את התיק בעל התשואה הגבוהה ביותר מתוך התיקים הפעילים בלבד.
+
+המדד יוצג רק כאשר קיימים לפחות שני תיקים פעילים.
+
+כאשר יש פחות משני תיקים פעילים, הצג מנעול והסבר:
+
+"נפתח מ־2 תיקים פעילים".
+
+אין להחיל על המדד הזה את סף 20% השייך למדד התיק המצטיין באזור ביצועי השחקן.
+
+### כללי תצוגה משותפים
+
+- שש הכרטיסיות תמיד יישארו גלויות.
+- נעילת מדד לא תשנה את סדר הכרטיסיות או את ממדיהן.
+- ערכים חיוביים יוצגו בירוק.
+- ערכים שליליים יוצגו באדום.
+- לכל מדד יהיה Tooltip קצר ונגיש.
+- הנתונים יתעדכנו אוטומטית מהמערכת.
+
+---
+
+## 5. מערכת תיקי ההשקעות – PORTFOLIO RULES
+
+יש לתכנן את הנתונים בכרטיס כך שיתמכו במודל הבא.
+
+כל תיק נפתח עם $10,000 וירטואליים.
+
+לכל משתמש חדש ניתנת הרשאה לניהול של עד שלושה תיקים.
+
+התיק הראשון ניתן בחינם.
+
+פתיחת תיק נוסף כרוכה בתשלום של $10–15, כאשר המחיר הסופי ייקבע בהמשך.
+
+### מסלולי הרשאה
+
+**Basic:**
+- הרשאה לניהול עד 3 תיקים.
+- תיק ראשון בחינם.
+- פתיחת תיקים נוספים בתשלום.
+
+**Advanced:**
+- תשלום של $50 עבור הרחבת ההרשאה לעד 10 תיקים.
+- התשלום מעניק מכסת תיקים, אך אינו כולל פתיחת תיקים נוספים בחינם.
+- כל פתיחת תיק נוסף כרוכה בתשלום נפרד.
+
+**Unlimited:**
+- תשלום של $100 עבור הרשאה למספר בלתי מוגבל של תיקים.
+- מנגנון חיוב פתיחת התיקים פועל בנפרד מהרשאת המסלול, בהתאם למחיר שייקבע.
+
+יש להפריד במבנה הנתונים בין סוג המסלול, מספר התיקים שנפתחו, מספר התיקים הפעילים והרשאות המשתמש.
+
+אין צורך להוסיף אזור תמחור לכרטיס השחקן בתמונה. המידע הזה מגדיר את לוגיקת הפלטפורמה בלבד.
+
+---
+
+## 6. אזור שלישי – PROFESSIONAL MEDALS
+
+### מטרה
+
+להציג את ארבע המדליות המקצועיות המשמעותיות והיוקרתיות ביותר שהשחקן השיג.
+
+### עיצוב
+
+בהתאם לתמונת הייחוס, יש להציג ארבע מדליות מעוצבות בשורה בתוך מסגרת כהה ומוזהבת.
+
+כל מדליה תכלול:
+
+- אייקון או סמל ייחודי.
+- שם המדליה.
+- עיצוב המשקף את רמת היוקרה והחשיבות שלה.
+
+המדליות יהיו בעלות מראה יוקרתי, עם אפשרות לצבעי זהב, כסף, ארד, אבני חן וסמלים מקצועיים.
+
+### לוגיקה
+
+יש ליצור מבנה נתונים עבור בנק מדליות מקצועיות (Professional Medals Bank).
+
+לכל מדליה יהיו:
+
+- מזהה ייחודי.
+- שם.
+- תיאור.
+- אייקון.
+- תנאי קבלה.
+- רמת יוקרה או חשיבות.
+- ניקוד XP שיוענק בעת השגתה.
+
+האזור יציג רק מדליות שהשחקן קיבל בפועל.
+
+מתוך כלל המדליות יוצגו ארבע המדליות היוקרתיות ביותר, לפי מנגנון דירוג שיוגדר בהמשך.
+
+לחיצה על מדליה תפתח חלונית עם מידע על המדליה ותנאי קבלתה.
+
+אין להמציא בשלב הנוכחי בנק מדליות סופי או תנאי קבלה.
+
+---
+
+## 7. אזור רביעי – GAME ACHIEVEMENTS
+
+### מטרה
+
+להציג את ארבעת הישגי המשחק הבולטים ביותר של השחקן.
+
+ההישגים נועדו להגדיל את המעורבות, התחרותיות וההנאה בפלטפורמה.
+
+### עיצוב
+
+הצג ארבעה סמלי הישגים בהתאם לתמונת הייחוס.
+
+העיצוב צריך להיות מעט יותר משחקי, צבעוני ויצירתי ממדליות מקצועיות.
+
+יש לשמור על מסגרת הכרטיס השחורה והמוזהבת.
+
+### לוגיקה
+
+יש ליצור בנק הישגים במשחק (Game Achievements Bank), נפרד מבנק המדליות המקצועיות.
+
+הישגים יכולים להתקבל באמצעות:
+
+- השתתפות בתחרויות.
+- השלמת משימות חודשיות.
+- השלמת אתגרים.
+- התקדמות במשחק.
+- פעילות קהילתית.
+
+לכל הישג יהיו:
+
+- מזהה ייחודי.
+- שם.
+- תיאור.
+- אייקון.
+- תנאי קבלה.
+- רמת חשיבות.
+- כמות XP.
+
+יש להציג את ארבעת ההישגים הבולטים ביותר שהשחקן קיבל בפועל.
+
+לחיצה על הישג תציג הסבר על ההישג ועל הדרך שבה התקבל.
+
+בנק ההישגים עצמו יוגדר בהמשך.
+
+---
+
+## 8. אזור חמישי – COMPETITION STATISTICS
+
+שם האזור:
+
+"השתתפות בתחרויות"
+
+מערכת התחרויות היא אחד ממנועי המעורבות המרכזיים של הפלטפורמה.
+
+יש לשחזר את מבנה הכרטיס בתמונת הייחוס: מסגרת כהה ומוזהבת וטבלה קומפקטית בת ארבע שורות.
+
+### 8.1 השתתפויות
+
+מספר התחרויות שבהן השחקן השתתף בפועל.
+
+כל תחרות תיספר פעם אחת.
+
+### 8.2 זכיות
+
+מספר התחרויות שבהן השחקן זכה בפרס.
+
+זכייה אינה בהכרח זהה לסיום באחד משלושת המקומות הראשונים.
+
+הגדרת הפרסים, תנאי הזכייה וחלוקתם ייקבעו בהמשך.
+
+### 8.3 TOP 3
+
+מספר התחרויות שבהן השחקן סיים באחד משלושת המקומות הראשונים.
+
+סיום במקום ראשון נכלל גם בספירת Top 3.
+
+### 8.4 מקום 1
+
+מספר התחרויות שבהן השחקן סיים במקום הראשון.
+
+### מנגנון התחרויות
+
+המערכת תתמוך בתחרויות מתמשכות מסוגים שונים.
+
+דוגמאות:
+
+- תחרות התשואה הגבוהה ביותר בספטמבר 2026.
+- תחרות התשואה הגבוהה ביותר ברבעון השלישי של 2026.
+- תחרויות נוספות לפי תקופות ומדדי השקעה.
+
+כל תחרות יכולה לכלול דמי השתתפות וקופת פרסים (Prize Pool).
+
+קופת הפרסים תגדל בהתאם למספר המשתתפים.
+
+פרטי התמחור, שיעור ההפרשה לקופה וחלוקת הפרסים יוגדרו בהמשך.
+
+### ניהול נתונים
+
+יש לשמור לכל תחרות:
+
+- מזהה.
+- שם.
+- תקופת התחרות.
+- דמי השתתפות.
+- משתתפים.
+- קופת פרסים.
+- קריטריון דירוג.
+- תוצאות.
+- מיקום השחקן.
+- סטטוס זכייה בפרס.
+
+יש להבחין בין תחרויות פעילות לבין תחרויות שהסתיימו.
+
+מיקום סופי וזכייה בפרס ייספרו רק לאחר אישור התוצאות.
+
+הנתונים בכרטיס השחקן יתעדכנו אוטומטית.
+
+לכל מדד תתווסף חלונית הסבר קצרה.
+
+אין צורך לבנות את מנגנון התחרויות המלא במסגרת כרטיס השחקן. נדרש להכין את הרכיב לחיבור אליו בעתיד.
+
+---
+
+## 9. אזור שישי – PLAYER PERFORMANCE
+
+שם האזור:
+
+"ביצועי שחקן"
+
+יש לשמור על העיצוב הקיים בתמונת הייחוס, אך להחליף את הנתונים בשישה המדדים הבאים.
+
+העיצוב יהיה טבלה קומפקטית עם שמות המדדים מצד אחד והערכים מהצד השני.
+
+### 9.1 סה"כ תיקים
+
+מספר כל התיקים שהשחקן פתח מאז שהצטרף לפלטפורמה.
+
+כולל תיקים פעילים ותיקים שנסגרו.
+
+### 9.2 תיקים פעילים
+
+מספר התיקים שמוגדרים Active במועד הצפייה.
+
+### 9.3 תשואה ממוצעת
+
+ממוצע אחוזי התשואה של כל התיקים הפעילים.
+
+החישוב חייב להיות זהה לחישוב של המדד הראשון בשורת שש הכרטיסיות.
+
+יש להשתמש באותו מקור נתונים ובאותו מנוע חישוב.
+
+המדד זמין רק כאשר לשחקן יש לפחות שני תיקים פעילים.
+
+### 9.4 תשואה חודשית ממוצעת
+
+הצג את ממוצע אחוזי התשואה של כלל התיקים הפעילים בחודש הקלנדרי הנוכחי.
+
+החישוב:
+
+1. חשב את תשואת כל תיק פעיל מתחילת החודש ועד למועד המדידה.
+2. עבור תיק שנפתח במהלך החודש, חשב את תשואתו ממועד הפתיחה.
+3. חשב ממוצע חשבוני פשוט של תשואות התיקים הפעילים.
+4. כל תיק יקבל משקל שווה, ללא קשר לשווי הנוכחי שלו.
+5. תיקים סגורים לא ייכללו בחישוב.
+
+בתחילת כל חודש תתחיל תקופת מדידה חדשה.
+
+המדד יציג את התשואה החודשית הממוצעת, ולא את שיעור החודשים שבהם השחקן היה רווחי.
+
+### 9.5 תיק מצטיין – שם התיק
+
+הצג את שם התיק הפעיל בעל התשואה המצטברת הגבוהה ביותר, בתנאי שתשואתו גבוהה מ־20%.
+
+אם אין לשחקן תיק פעיל בעל תשואה גבוהה מ־20%, הצג את המדד כנעול.
+
+אין להציג שם תיק במקרה כזה.
+
+### 9.6 תשואת תיק מצטיין
+
+הצג את אחוז התשואה המצטברת של התיק שנבחר במדד הקודם.
+
+גם מדד זה זמין רק כאשר קיים תיק פעיל בעל תשואה גבוהה מ־20%.
+
+כאשר התנאי אינו מתקיים, הצג מנעול.
+
+שני מדדי התיק המצטיין חייבים להתייחס לאותו תיק ולהיפתח ולהינעל יחד.
+
+### עיצוב נעילה
+
+במצב נעול יש להציג אייקון מנעול מוזהב או אפור עם הסבר קצר.
+
+כל שש השורות יישארו במקומן גם כאשר חלק מהן נעולות.
+
+---
+
+## 10. אזור שביעי – PLAYER PROGRESSION & XP
+
+שם האזור:
+
+"התקדמות במשחק"
+
+יש לשחזר את מבנה האזור בהתאם לתמונת הייחוס.
+
+### מבנה
+
+הצג:
+
+- סמל דרגה מעוצב.
+- מספר Level נוכחי.
+- מספר נקודות XP שנצברו.
+- מספר נקודות XP הדרושות לרמה הבאה.
+- פס התקדמות אופקי.
+- הרמה הבאה.
+- התואר הבא מתוך בנק התארים.
+
+פס ההתקדמות יהיה בצבעי זהב וסגול בהתאם לשפה העיצובית.
+
+### מערכת XP
+
+השחקן צובר XP כתוצאה מפעילות, הישגים והתקדמות בפלטפורמה.
+
+מקורות הצבירה כוללים:
+
+- ביצועי השקעות.
+- רווחיות.
+- פעילות וניהול תיקים.
+- מספר תיקים.
+- עוקבים.
+- מנויים.
+- מדליות מקצועיות.
+- הישגים במשחק.
+
+**מדליות מקצועיות יעניקו בדרך כלל יותר XP מהישגי משחק רגילים**, בהתאם למנגנון הניקוד שיוגדר בהמשך.
+
+יש לשמור על מנגנון XP מרכזי אחד.
+
+הדרגה שמופיעה באזור זה חייבת להיות זהה לדרגה שמופיעה בכותרת הפרופיל.
+
+### תארים
+
+יש להשתמש באותו בנק תארים שהוגדר באזור הראשון.
+
+המערכת תזהה מהו התואר הנוכחי ומהו התואר הבא בהתאם להתקדמות השחקן.
+
+מנגנון ספי ה-XP, מעבר הרמות ותנאי התארים יוגדר בנפרד.
+
+אין להמציא בשלב זה טבלת XP או תארים סופית.
+
+---
+
+## 11. כללי אינטראקציה – UX
+
+יש לאפשר אינטראקציות עדינות ואחידות בכרטיס.
+
+### חלוניות מידע
+
+לכל מדד מספרי משמעותי תופיע אפשרות לפתוח הסבר קצר.
+
+במחשב באמצעות Hover או לחיצה על אייקון מידע.
+
+בטלפון באמצעות לחיצה.
+
+ההסבר יציג מה המדד מודד, ללא מידע טכני מיותר.
+
+### מדליות והישגים
+
+לחיצה על מדליה או הישג תפתח חלונית המציגה את השם, התיאור, משמעות ההישג ותנאי קבלתו.
+
+### מצבי נעילה
+
+מדדים נעולים חייבים להישאר גלויים במקומם.
+
+הנעילה תוצג בצורה ברורה אך אלגנטית.
+
+כל מצב נעילה יכלול הסבר על התנאי הדרוש לפתיחתו.
+
+### מידע אישי
+
+רק בעל החשבון רשאי לערוך את תמונת הפרופיל, השם הפרטי, הכינוי וה-Bio, בכפוף לכללי המערכת.
+
+דרגות, תארים, XP, מדליות, הישגים, תשואות ונתוני תחרויות נקבעים ומעודכנים על ידי המערכת בלבד.
+
+---
+
+## 12. מבנה נתונים וחיבור למערכת
+
+יש לבנות רכיבים דינמיים ומודולריים.
+
+מבנה הנתונים צריך לתמוך לפחות בישויות הבאות:
+
+**Player**
+- מזהה שחקן.
+- כינוי ייחודי.
+- שם פרטי אופציונלי.
+- תמונת פרופיל.
+- Bio.
+- Level.
+- XP.
+- תואר נוכחי.
+
+**Portfolio**
+- מזהה תיק.
+- בעל התיק.
+- שם תיק.
+- תאריך פתיחה.
+- תאריך סגירה, אם רלוונטי.
+- סטטוס.
+- הון התחלתי של $10,000.
+- שווי נוכחי.
+- תשואה מצטברת.
+- תשואה חודשית.
+
+**Player Social Stats**
+- מספר עוקבים.
+- מספר מנויים משלמים פעילים.
+- הרשאות צפייה בתיקים.
+
+**Professional Medals**
+- בנק מדליות.
+- מדליות שהוענקו לשחקן.
+- דרגת יוקרה.
+- XP.
+
+**Game Achievements**
+- בנק הישגים.
+- הישגי השחקן.
+- XP.
+
+**Competitions**
+- פרטי תחרות.
+- השתתפויות.
+- דירוגים.
+- תוצאות סופיות.
+- זכיות בפרסים.
+
+**Progression**
+- XP נוכחי.
+- Level.
+- דרישות הרמה הבאה.
+- בנק תארים.
+
+אין צורך לבנות את כל מנגנוני הפלטפורמה בשלב זה, אך מבנה כרטיס השחקן צריך להיות מוכן לחיבור אליהם.
+
+אם עדיין אין Backend או נתוני אמת, השתמש בנתוני Demo מופרדים מהלוגיקה, שניתן להחליף בקלות במידע אמיתי.
+
+אין לקבע את ערכי הדוגמה שבתמונת הייחוס בתוך הרכיבים.
+
+---
+
+## 13. דרישות איכות ופיתוח
+
+- תמיכה מלאה ב-RTL.
+- עיצוב רספונסיבי.
+- שמירה על עקביות בעיצוב.
+- רכיבים מודולריים.
+- הפרדה בין נתונים, חישובים ותצוגה.
+- מניעת כפילות של חישובי תשואה או XP.
+- חיבור משותף למקורות נתונים כאשר אותו נתון מופיע במספר אזורים.
+- הצגת מצבים תקינים של נתון חסר, אפס, נעול או לא זמין.
+- טיפול בטקסטים ארוכים בלי לפגוע בפריסת הכרטיס.
+- תמיכה נכונה בשילוב עברית ואנגלית.
+
+יש להימנע מהוספת רכיבים, כפתורים, מנגנונים או מדדים שלא אושרו במסגרת האפיון.
+
+---
+
+## 14. קריטריונים להשלמת המשימה
+
+המשימה תיחשב כמושלמת כאשר:
+
+1. כרטיס השחקן משחזר את הסגנון והפריסה של תמונת הייחוס ללא העמודה השמאלית.
+2. שבעת האזורים קיימים וממוקמים בהתאם לאפיון.
+3. ששת המדדים המרכזיים פועלים בהתאם להגדרות ולתנאי הנעילה.
+4. מדדי הביצועים מחושבים לפי התיקים הפעילים והתקופות שהוגדרו.
+5. מדליות מקצועיות והישגי משחק מנוהלים כשתי מערכות נפרדות.
+6. אזור התחרויות מציג את ארבעת המדדים הנדרשים.
+7. Level, XP והתארים מחוברים למערכת התקדמות אחידה.
+8. כל חלוניות המידע והאינטראקציות פועלות.
+9. העיצוב מתאים גם למחשב וגם לטלפון.
+10. רכיבים שטרם הוגדרה עבורם לוגיקה עסקית סופית מוכנים להרחבה עתידית, ללא המצאת חוקים.
+
+### הנחיית ביצוע סופית
+
+אל תעצב את כרטיס השחקן מחדש.
+
+השתמש בתמונת הייחוס כדי לשחזר את השפה הגרפית, מבנה הרכיבים, סדר התצוגה, האייקונים, הפרופורציות והאווירה הכללית.
+
+התייחס לאפיון הטקסטואלי כמקור האמת להגדרת הנתונים, המדדים, תנאי ההצגה והאינטראקציות, במיוחד במקרים שבהם שינינו את התוכן המופיע בתמונת המקור.
+
+המטרה היא ליצור כרטיס שחקן מרשים, מקצועי, משחקי ודינמי, שנראה קרוב ככל האפשר לתמונה המקורית וניתן להרחבה בהמשך פיתוח הפלטפורמה.
+
+</div>
+
+---
+
+# PART 4 — PLAYER CARD: RULES SUMMARY AND GAP (2026-10-16)
+
+An English summary of the rules in Part 3, for reference only. **Part 3 is
+the source of truth**; where this summary and Part 3 differ, Part 3 wins.
+Section numbers refer to Part 3.
+
+## Rules summary
+
+**Layout (2).** Hebrew, right-to-left. Desktop rows: page title and a wide
+profile card; six stat cards; Competitions (right), Game Achievements
+(centre), Professional Medals (left); Game Progress (right), Player
+Performance (left). Responsive on small screens without hiding any metric.
+The reference image is the binding design basis, excluding its left column.
+
+**Header (3).**
+- Profile picture: upload, platform avatar gallery, or special platform
+  images; a default when none is chosen; large circle with a glowing gold
+  border.
+- Nickname: mandatory, unique, availability checked on selection, the
+  player's primary identity everywhere. First name optional.
+- Level: derived from XP only, never entered or edited.
+- Title: looked up from a central title bank by level or level range; never
+  freely chosen.
+- Bio, labelled "Player Description": free text, at most 100 characters, with
+  a live counter; independent of the title.
+
+**Six stat cards (4)**, always visible, order and size unchanged when locked,
+green for positive and red for negative values, each with a tooltip:
+
+| # | Card | Rule | Lock |
+|---|---|---|---|
+| 4.1 | Average return, active portfolios | Simple arithmetic mean of each active portfolio's return since it opened; equal weights; no period normalisation; closed portfolios excluded | Locked below 2 active portfolios: "נפתח מ־2 תיקים פעילים" |
+| 4.2 | Game achievements | Total count earned, regardless of how many the card displays | — |
+| 4.3 | Professional medals | Total count earned; kept separate from achievements | — |
+| 4.4 | Paid subscribers | Active paid subscribers; $3/month; grants access to the creator's portfolios and holdings; player-level | — |
+| 4.5 | Followers | Free followers; discovery is via the Leaderboard; grants no access to holdings or subscriber content; player-level | — |
+| 4.6 | Best portfolio gain | Highest cumulative return among active portfolios; the 20% threshold of 9.5 does **not** apply | Locked below 2 active portfolios |
+
+**Portfolio plans (5)** — platform logic, not shown on the card:
+- Every portfolio opens with $10,000 virtual.
+- Basic: up to 3 portfolios; the first is free; each further opening costs
+  $10–15 (final price TBD).
+- Advanced: $50 raises the allowance to 10; openings are still paid
+  separately.
+- Unlimited: $100 for no limit; openings are still paid separately.
+- The data model separates plan type, portfolios opened, portfolios active,
+  and permissions.
+
+**Professional medals (6)** and **game achievements (7):** two separate
+banks. Each entry: unique ID, name, description, icon, earning condition,
+prestige/importance, XP. The card shows the player's top 4 of each, earned
+only, by a ranking to be defined. Clicking one opens its details and
+condition. The banks' contents are deliberately not defined yet.
+
+**Competitions (8):** four counts — participations (each competition once),
+prize wins (not necessarily top 3), top 3 (includes 1st), 1st place. Final
+placing and prizes count only once results are confirmed. Per competition:
+ID, name, period, entry fee, participants, prize pool, ranking criterion,
+results, the player's placing, prize status; active vs. ended. Entry fees and
+a prize pool that grows with participants; pricing, pool share and
+distribution TBD. Only the card's component is in scope, not the full
+competition system.
+
+**Player performance (9)** — six rows, always in place:
+
+| # | Row | Rule | Lock |
+|---|---|---|---|
+| 9.1 | Total portfolios | Every portfolio ever opened, active and closed | — |
+| 9.2 | Active portfolios | Count with status Active at view time | — |
+| 9.3 | Average return | Identical to 4.1: same data source and same engine | Locked below 2 active |
+| 9.4 | Average monthly return | Mean over active portfolios of each one's return from the start of the current calendar month (or from opening, if opened this month) to now; equal weights; closed excluded; resets each month. Not the share of profitable months | None stated |
+| 9.5 | Top portfolio — name | Active portfolio with the highest cumulative return, only if above 20% | Locked otherwise; no name shown |
+| 9.6 | Top portfolio — return | The cumulative return of the portfolio in 9.5 | Locks and unlocks together with 9.5 |
+
+**Progression (10):** rank emblem, current level, XP earned, XP needed for the
+next level, a gold-and-purple progress bar, next level, next title. One
+central XP system; the level here must equal the level in the header. XP
+sources: investment performance, profitability, portfolio activity, number
+of portfolios, followers, subscribers, medals, achievements; medals usually
+give more XP than ordinary achievements. Thresholds, level transitions and
+title conditions are deliberately not defined yet.
+
+**Interaction (11):** a short explanation for every significant figure
+(hover or info icon on desktop, tap on mobile); a details panel for medals
+and achievements; locked metrics stay visible with the unlock condition.
+Only the owner edits picture, first name, nickname and bio, subject to system
+rules. Level, title, XP, medals, achievements, returns and competition data
+are set by the system only.
+
+**Data and quality (12–13):** entities Player, Portfolio, Player Social
+Stats, Professional Medals, Game Achievements, Competitions, Progression.
+Separate data, calculations and display; no duplicated return or XP
+calculation; shared data sources where a figure appears in several places;
+proper missing / zero / locked / unavailable states; long text must not break
+the layout; correct mixed Hebrew and English. Nothing may be added that the
+spec does not approve. Demo data, if used, stays separate from logic and
+must not hard-code the reference image's sample values.
+
+## Conflicts with the main spec (Part 1)
+
+1. **UI language.** Part 1: "The UI language must be English." Part 3: Hebrew,
+   RTL. Undecided whether Hebrew applies to the Player Card only or the whole
+   product.
+2. **View Portfolios button.** Part 1 lists it on the Player Card as the
+   subscriber's route into Dashboard 2. Part 3 does not include it and forbids
+   adding components it does not define, which as written leaves no route
+   from the card to the portfolios.
+3. **"Average monthly return" names two different metrics.** Part 3 §9.4 is a
+   player-level month-to-date average across active portfolios. Part 1
+   Module 5 is a per-portfolio statistic over its whole history. They need
+   different metric IDs and probably different labels.
+4. **Visual direction.** Part 3's "Dark Luxury Gaming Dashboard", game-style
+   icons, purple XP accent and `#08090B` background sit uneasily with Part
+   1's restrained gold and "avoid a casino-like visual style", and differ from
+   the current `--bg-base: #080B11`.
+5. **Portfolio status.** Part 3 uses Active and Closed; Part 1 adds Archived,
+   still undefined.
+6. **"Average Return Across All Portfolios"** in Part 1 becomes "active
+   portfolios" in Part 3. Treated as a refinement, not a conflict.
+
+## Clashes with the current code
+
+- **Portfolio allowance.** Every account currently gets 3 free portfolios
+  (`FREE_TIER_PORTFOLIO_LIMIT`); Part 3 makes only the first free.
+  `portfolioLimitFor()` is the existing hook for plans.
+- **No closing.** Portfolios have no status or close date, yet 4.1, 4.6 and
+  9.1–9.6 all depend on Active vs. Closed.
+- **Nickname.** `users.display_name` is nullable, not unique, and falls back
+  to the email local-part. A unique nickname needs a migration and a rule for
+  existing accounts.
+- **9.4 needs NAV history.** Month-to-date return needs each portfolio's value
+  at the start of the month, which only the phase 5 snapshots will provide.
+
+## Undefined in Part 3
+
+- **Payments.** Who receives the $3 subscription (creator, platform, split);
+  whether the $50 / $100 plans are one-time or recurring; the final price of
+  an extra portfolio opening.
+- **Rankings and scoring.** How the "top 4" medals and achievements are
+  ranked; XP amounts; level thresholds; the title bank. All deliberately
+  deferred.
+- **Nickname rules.** Case sensitivity, allowed characters and length, and
+  whether and how often it can be changed ("subject to system rules").
+- **Month boundary for 9.4.** Which time zone: Israel time and New York market
+  time start the month at different moments.
+- **Lock for 9.4.** No minimum-portfolios condition is stated, unlike 9.3. Is
+  that intended?
+- **Ties.** Which portfolio 4.6 / 9.5 pick when two share the highest return
+  (matters for 9.5, which shows a name).
+- **Which return.** Part 3 says "return" without qualification; Part 1
+  requires game-earned capital never to count as return, so these should be
+  the flow-adjusted returns from the metric engine.
+
+## Legal note — before building anything that takes money
+
+Part 3 adds real-money pricing in three places: subscriptions apparently paid
+to creators, paid portfolio plans, and competitions with entry fees and a
+prize pool that grows with participants. Paid-entry contests with prizes can
+fall under gambling or lottery law — short-period stock returns carry a large
+element of chance, and Israel's rules (Penal Law §§224–235) are strict. Paying
+creators adds KYC, tax reporting and marketplace terms. Get a lawyer's view
+before building prize pools or creator payouts; the non-monetary parts do not
+depend on it.
+
+## Buildable now
+
+Defined well enough to implement without inventing rules:
+
+- In the metric engine: average active-portfolio return with the 2-portfolio
+  lock (4.1 / 9.3, one function for both); best active portfolio with the
+  lock (4.6); top portfolio above 20%, name and return as one locked unit
+  (9.5 / 9.6); total and active counts (9.1 / 9.2); the 9.4 average given
+  each portfolio's month-to-date return, and month-to-date return itself
+  from a NAV series; the four competition counts from confirmed results.
+- In the data model: Player identity fields, the medal and achievement banks
+  and awards, competitions and entries, progression — as empty structures,
+  with no invented values.
+
+Blocked: the UI on the reference image and the language ruling; 9.4 in
+production on NAV history; XP, levels and titles on the deferred scoring
+rules; anything taking money on the legal review.
