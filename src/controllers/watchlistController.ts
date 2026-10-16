@@ -40,8 +40,9 @@ const MAX_NOTE_LENGTH = 2000;
 // it closes the record stands, and the only way out is a sale.
 //
 // Measured from when the buy was RECORDED, not from the date it is dated.
-// Those are the same moment for an ordinary purchase, but a manual entry can
-// be backdated to a trade made years ago - and measuring from added_at there
+// Those are the same moment for an ordinary purchase, but manual entries -
+// no longer accepted, though older rows remain - could be backdated to a
+// trade made years ago, and measuring from added_at there
 // would close the window before the row even existed, leaving a mistyped
 // import permanently stuck in the portfolio.
 const REMOVAL_WINDOW_MS = 60 * 1000; // 60 seconds
@@ -62,6 +63,30 @@ const validateNote = (raw: unknown): { note: string } | { error: string } => {
 // the way in keeps the cash balance from drifting into fractions of a penny
 // that no screen can display.
 const money = (value: number): number => Math.round(value * 100) / 100;
+
+// The price a trade executes at. Always the server's own quote, never a figure
+// from the request: a price the client chooses is a return the client chooses,
+// and the leaderboard ranks exactly that.
+//
+// Uses the cached price where possible; otherwise spends one request.
+const marketPrice = async (symbol: string): Promise<number> => {
+  const cached = await pool.query(
+    "SELECT last_price FROM stocks WHERE stock_symbol = $1 AND updated_at > NOW() - INTERVAL '24 hours'",
+    [symbol]
+  );
+  if (cached.rows.length > 0) return parseFloat(cached.rows[0].last_price);
+
+  const quote = await fetchQuote(symbol);
+  if (!quote.price) throw new Error("Invalid stock data");
+  await pool.query(
+    `INSERT INTO stocks (stock_symbol, last_price, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (stock_symbol)
+     DO UPDATE SET last_price = $2, updated_at = NOW()`,
+    [symbol, quote.price]
+  );
+  return quote.price;
+};
 
 // Which portfolio this request is acting on.
 //
@@ -155,8 +180,21 @@ export const getWatchlist: RequestHandler = async (req, res, next) => {
 // Records a buy: creates the holding and its journal entry, and pays for it
 // out of the portfolio's cash.
 export const addToWatchlist: RequestHandler = async (req, res, next): Promise<void> => {
-  const { stock_symbol, quantity, industry, price_at_time, added_at, manual, note } = req.body;
+  const { stock_symbol, quantity, industry, manual, note } = req.body;
   const userId = (req as any).user.id;
+
+  // Manual entry used to take its price and date from the request, so anyone
+  // could "buy" at a price of their choosing on a day of their choosing and
+  // rank on the return. Every position now opens at the market price, today.
+  // Refused rather than ignored: quietly buying at today's price would record
+  // a trade the caller did not ask for.
+  if (manual) {
+    res.status(400).json({
+      error: "Manual entry is no longer supported. Positions open at the market price.",
+      code: "MANUAL_ENTRY_REMOVED",
+    });
+    return;
+  }
 
   if (!stock_symbol) {
     res.status(400).json({ error: "Stock symbol is required" });
@@ -181,39 +219,8 @@ export const addToWatchlist: RequestHandler = async (req, res, next): Promise<vo
 
   const client = await pool.connect();
   try {
-    let currentPrice: number;
-    let timestamp: string;
-
-    if (manual) {
-      // Manual entry supplies its own price and (possibly backdated) date
-      if (!price_at_time || !added_at) {
-        res.status(400).json({ error: "Manual entry requires price and added_at date." });
-        return;
-      }
-      currentPrice = parseFloat(price_at_time);
-      timestamp = added_at;
-    } else {
-      // Use the cached price where possible; otherwise spend one request.
-      const cached = await client.query(
-        "SELECT last_price FROM stocks WHERE stock_symbol = $1 AND updated_at > NOW() - INTERVAL '24 hours'",
-        [symbol]
-      );
-      if (cached.rows.length > 0) {
-        currentPrice = parseFloat(cached.rows[0].last_price);
-      } else {
-        const quote = await fetchQuote(symbol);
-        currentPrice = quote.price;
-        if (!currentPrice) throw new Error("Invalid stock data");
-        await client.query(
-          `INSERT INTO stocks (stock_symbol, last_price, updated_at)
-           VALUES ($1, $2, NOW())
-           ON CONFLICT (stock_symbol)
-           DO UPDATE SET last_price = $2, updated_at = NOW()`,
-          [symbol, currentPrice]
-        );
-      }
-      timestamp = new Date().toISOString();
-    }
+    const currentPrice = await marketPrice(symbol);
+    const timestamp = new Date().toISOString();
 
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
       res.status(400).json({ error: "Price must be greater than zero" });
@@ -296,9 +303,13 @@ export const addToWatchlist: RequestHandler = async (req, res, next): Promise<vo
 // SELL HOLDING CONTROLLER
 // Records a sale: reduces or closes the position, writes the journal entry,
 // and credits the proceeds back to the portfolio's cash.
+//
+// The sale executes at the market price, exactly as a buy does. Any price in
+// the request body is ignored: accepting one let anyone sell a single share
+// for a million dollars and take the top of the leaderboard.
 export const sellHolding: RequestHandler = async (req, res, next): Promise<void> => {
   const { id } = req.params;
-  const { quantity, price, note } = req.body;
+  const { quantity, note } = req.body;
   const userId = (req as any).user.id;
 
   const noteResult = validateNote(note);
@@ -313,14 +324,25 @@ export const sellHolding: RequestHandler = async (req, res, next): Promise<void>
     return;
   }
 
-  const salePrice = parseFloat(price);
-  if (!Number.isFinite(salePrice) || salePrice <= 0) {
-    res.status(400).json({ error: "A valid sale price is required" });
-    return;
-  }
-
   const client = await pool.connect();
   try {
+    // Price the sale before the transaction opens. A quote can wait in the
+    // market data queue, and the position should not sit locked while it does.
+    // The symbol on a holding never changes, so it is safe to read it first.
+    const owned = await client.query(
+      "SELECT stock_symbol FROM watchlist WHERE id = $1 AND user_id = $2",
+      [id, userId]
+    );
+    if (owned.rows.length === 0) {
+      res.status(404).json({ error: "Holding not found" });
+      return;
+    }
+    const salePrice = await marketPrice(owned.rows[0].stock_symbol);
+    if (!Number.isFinite(salePrice) || salePrice <= 0) {
+      res.status(502).json({ error: "No market price is available for this stock right now." });
+      return;
+    }
+
     await client.query("BEGIN");
 
     // Lock the row so two concurrent sells cannot both pass the quantity check.
@@ -374,6 +396,7 @@ export const sellHolding: RequestHandler = async (req, res, next): Promise<void>
       message: `Sold ${sellQty} ${holding.stock_symbol} at ${salePrice}`,
       closed: closesPosition,
       remaining: closesPosition ? 0 : heldQty - sellQty,
+      price: salePrice,
       proceeds,
       cash_remaining: parseFloat(updated.rows[0].cash),
     });

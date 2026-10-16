@@ -76,9 +76,9 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_symbol  ON watchlist(stock_symbol);
 -- is sold its row shrinks or disappears, but the trade and its reasoning must
 -- survive for other users to read.
 --
--- occurred_at is when the trade happened (a manual entry can be backdated);
--- created_at is when the note was written. Showing both keeps a backdated
--- entry honest.
+-- occurred_at is when the trade happened; created_at is when the note was
+-- written. New trades set both to now, but manual entries - no longer
+-- accepted - could be backdated, and showing both keeps those rows honest.
 CREATE TABLE IF NOT EXISTS trade_notes (
   id            SERIAL PRIMARY KEY,
   user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
