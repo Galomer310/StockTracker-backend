@@ -1,156 +1,192 @@
-# StockTrack-backend
+# Investments — backend
 
-**StockTrack** is a web-based platform that allows users to track stock market performance, view real-time stock data, and manage their watchlist. Users can create accounts, log in securely, and store their preferred stocks for easy access. The app is built with a full-stack setup using Node.js, React, PostgreSQL, and Redux.
+The API behind **Investments** (formerly StockTrack): a social investing game
+where every player runs virtual model portfolios that start with $10,000,
+trades at real quoted prices, explains each trade, and is ranked on a
+leaderboard and seen in a shared feed.
 
----
-
-## Features
-
-- **User Authentication:** Secure account registration and login using JWT authentication.
-- **Watchlist Management:** Add, view, and remove stocks from a personalized watchlist.
-- **Real-Time Stock Data:** Fetch live stock data using the Polygon.io API.
-- **Responsive Design:** Optimized for both desktop and mobile viewing.
-- **State Management:** Redux is used to manage global state.
+The frontend lives in
+[StockTrack-frontend](https://github.com/Galomer310/StockTrack-frontend).
 
 ---
 
-## Tech Stack
+## What it does
 
-### Frontend:
+- **Accounts.** Registration and login with short-lived access tokens and
+  refresh tokens. Passwords need at least 12 characters and are checked
+  against common passwords; login answers the same way whether or not the
+  email exists.
+- **Portfolios.** Up to three per account, each opening with $10,000 of
+  virtual cash. Cash can never go negative, so every position is a real share
+  of a real book.
+- **Trades at market prices.** Buys and sells execute at the server's own
+  quote; any price a client sends is ignored, and manual entry of a past trade
+  is refused. A buy can be taken back within 60 seconds; after that the only
+  way out is a sale.
+- **Trade journal.** Every buy and sell carries the player's reasoning, kept
+  even after the position is closed.
+- **Leaderboard and public portfolios.** Ranked by percentage return against
+  the starting $10,000. Other players see percentages only, never money.
+- **Feed.** Every trade by every player, with reactions and replies.
+- **Market data.** A proxy in front of Alpha Vantage, with caching and a
+  daily request budget shared across the server.
+- **Metric engine** (`src/metrics/`). Pure, versioned calculation functions
+  for the product spec's metrics: returns that exclude game-earned capital,
+  volatility, drawdown, concentration, risk score, exposures, benchmarks and
+  the Player Card figures. Unit-tested; not yet wired to every screen.
 
-- React (Vite setup)
-- TypeScript
-- Redux (for state management)
-- CSS (custom styling)
+The product spec, the gap between it and this code, and the decisions taken
+so far are in [`docs/PRODUCT-SPEC-AND-GAP.md`](docs/PRODUCT-SPEC-AND-GAP.md).
 
-### Backend:
+## Tech stack
 
-- Node.js (Express)
-- TypeScript
-- PostgreSQL (hosted on NeonDB)
-- JWT for authentication
-- API integration with Polygon.io
+- Node.js 22, Express 4, TypeScript
+- PostgreSQL (hosted on Neon)
+- JWT authentication, bcrypt password hashing
+- Alpha Vantage for market data
+- helmet, CORS allowlist, per-route rate limiting
+- Vitest for tests
 
-### Database:
+## Getting started
 
-- PostgreSQL with NeonDB
-- Tables for users, watchlists, and stocks
+Prerequisites: Node.js 22 and a PostgreSQL database.
 
----
+```bash
+npm install
+```
 
-## Project Structure
+Create a `.env` file:
+
+```env
+DATABASE_URL=postgres://user:password@host/dbname
+JWT_SECRET=at-least-32-random-characters
+REFRESH_SECRET=a-different-value-of-at-least-32-characters
+ALPHA_VANTAGE_API_KEY=your-key
+```
+
+The server refuses to start without `DATABASE_URL`, `JWT_SECRET` and
+`REFRESH_SECRET`, if either secret is shorter than 32 characters, or if the
+two are the same.
+
+Create or update the tables (safe to re-run), then start the server:
+
+```bash
+node src/db/migrate.js
+npm run dev
+```
+
+It listens on `http://localhost:3000`.
+
+The database connection always requests SSL, as Neon requires. For a local
+Postgres without SSL, add `?sslmode=disable` to `DATABASE_URL`.
+
+### Optional settings
+
+| Variable | Purpose |
+|---|---|
+| `PORT` | Port to listen on (default 3000). |
+| `NODE_ENV` | `production` in deployment. `development` adds error detail to responses; anything else keeps it out. |
+| `CORS_ORIGINS` | Comma-separated origins allowed to call the API. Defaults to the local Vite dev server; set it to the frontend's domain in deployment. |
+| `TRUST_PROXY` | Number of proxies in front of the server (usually `1` on Render), so rate limits see real client addresses. Leave unset without a proxy. |
+| `ALPHA_VANTAGE_DAILY_LIMIT` | Daily request budget (default 25, the free tier). |
+| `ALPHA_VANTAGE_MIN_GAP_MS` | Minimum gap between requests (default 1200). |
+| `ALPHA_VANTAGE_PREMIUM` | `true` on a paid plan, to enable intraday data. |
+
+### Scripts
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Run with automatic restart (nodemon + ts-node). |
+| `npm run build` | Compile to `dist/`. |
+| `npm start` | Run the compiled build. |
+| `npm test` | Type-check the tests, then run them with Vitest. |
+| `node src/db/migrate.js` | Apply `src/db/schema.sql`. Idempotent. |
+| `node src/db/seedDemo.js` | Add demo accounts and portfolios; `--undo` removes them. |
+
+`src/db/resetForPortfolios.js` is a one-time, destructive migration that was
+used to move to the portfolio model. Read its header before running it.
+
+## API
+
+Every route except `/auth` needs an `Authorization: Bearer <access token>`
+header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
+
+### Authentication — `/auth`
+
+| Method | Path | |
+|---|---|---|
+| POST | `/auth/register` | Create an account. |
+| POST | `/auth/login` | Sign in; returns access and refresh tokens. |
+| POST | `/auth/refresh` | Exchange a refresh token for a new access token. |
+
+### Portfolios — `/portfolios`
+
+| Method | Path | |
+|---|---|---|
+| GET | `/portfolios` | Your portfolios, valued, with cash. |
+| POST | `/portfolios` | Open a new portfolio, up to the account's limit. |
+
+### Holdings and trades — `/watchlist`
+
+| Method | Path | |
+|---|---|---|
+| GET | `/watchlist` | Holdings and cash in the open portfolio. |
+| POST | `/watchlist` | Buy at the market price, with a required note. |
+| POST | `/watchlist/:id/sell` | Sell all or part of a holding at the market price, with a note. |
+| DELETE | `/watchlist/:id` | Take back a buy within 60 seconds of making it. |
+
+### Social — `/social`
+
+| Method | Path | |
+|---|---|---|
+| GET | `/social/leaderboard` | Every portfolio ranked by percentage return. |
+| GET | `/social/portfolios/:id` | One portfolio; percentages only unless it is yours. |
+| GET | `/social/portfolios/:id/journal` | A portfolio's trades and their reasoning. |
+
+### Feed — `/feed`
+
+| Method | Path | |
+|---|---|---|
+| GET | `/feed` | Everyone's trades, newest first. |
+| POST | `/feed/:id/reactions` | React to a post. |
+| POST | `/feed/:id/comments` | Reply to a post. |
+| DELETE | `/feed/comments/:commentId` | Delete your reply. |
+
+### Market data — `/stocks`
+
+| Method | Path | |
+|---|---|---|
+| GET | `/stocks/market-status` | Whether US markets are open. |
+| GET | `/stocks/quota` | Remaining market data budget for today. |
+| GET | `/stocks/search` | Symbol search. |
+| GET | `/stocks/:ticker` | Latest close, cached for 24 hours. |
+| GET | `/stocks/:ticker/quote` | Full quote. |
+| GET | `/stocks/:ticker/details` | Company fundamentals: sector, industry, market cap. |
+| GET | `/stocks/:ticker/news` | Recent news. |
+| GET | `/stocks/:ticker/aggregates` | Daily price history (`?days=30`). |
+
+## Project structure
 
 ```
-StockTrack/
-├── backend/
-│   └── src/
-│        └── server.ts
-├── frontend/
-│   └── src/
-│        ├── App.tsx
-│        └── main.tsx
-├── types/
-└── .gitignore
+src/
+  server.ts         app setup, security headers, CORS, route mounting
+  config/           database pool, CORS, portfolio rules
+  routes/           one router per area above
+  controllers/      request handlers
+  middleware/       authentication, rate limits, error handling
+  services/         Alpha Vantage client, market clock
+  metrics/          the metric engine and its tests
+  db/               schema.sql, migration, seed and reset scripts
+docs/               product spec and gap analysis
 ```
 
----
+## Deployment
 
-## Installation
-
-### Prerequisites:
-
-- Node.js (v16 or higher)
-- PostgreSQL (or access to NeonDB)
-
-### Backend Setup
-
-1. Navigate to the backend folder:
-   ```bash
-   cd StockTrack/backend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Create a `.env` file in the `backend` directory with the following variables:
-   ```env
-   DATABASE_URL=your_database_url
-   JWT_SECRET=your_jwt_secret
-   POLYGON_API_KEY=your_polygon_api_key
-   ```
-4. Start the server:
-   ```bash
-   npm run dev
-   ```
-
-### Frontend Setup
-
-1. Navigate to the frontend folder:
-   ```bash
-   cd StockTrack/frontend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-The frontend will be available at `http://localhost:5173`, and the backend at `http://localhost:3000`.
-
----
-
-## API Endpoints
-
-### Authentication
-
-- `POST /auth/register` - Register a new user
-- `POST /auth/login` - Login and receive a JWT token
-
-### Watchlist
-
-- `GET /watchlist` - Fetch the user's watchlist (requires authentication)
-- `POST /watchlist` - Add a new stock to the watchlist (requires authentication)
-- `DELETE /watchlist/:ticker` - Remove a stock from the watchlist (requires authentication)
-
----
-
-## Development Workflow
-
-1. Use `Redux Dev Tools` for testing and debugging global state.
-2. Ensure the frontend is synchronized with backend API endpoints.
-3. Use `ES6` or `ES2016` standards for JavaScript development.
-
----
-
-## Contributing
-
-1. Fork the repository.
-2. Create a new branch:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-3. Make your changes and commit them:
-   ```bash
-   git commit -m "Add your message here"
-   ```
-4. Push the changes:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-5. Open a pull request.
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
----
+Prepared for Render: `npm ci && npm run build`, then `npm start`. Set
+`NODE_ENV=production`, `CORS_ORIGINS` to the frontend's address,
+`TRUST_PROXY=1`, and the required secrets. Run `node src/db/migrate.js`
+against the production database after any schema change.
 
 ## Contact
 
-For questions or feedback, please contact [[galomer6708@gmail.com](mailto\:galomer6708@gmail.com)].
-
+For questions or feedback: [galomer6708@gmail.com](mailto:galomer6708@gmail.com)
