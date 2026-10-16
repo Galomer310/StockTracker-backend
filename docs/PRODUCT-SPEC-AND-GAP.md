@@ -1011,8 +1011,8 @@ Build outward, not rewrite.
    capital (conflict 2).
 3. The 60-second undo (see "Clashes").
 4. Market data and security master provider for phase 0.
-5. The Player Card questions in Part 4 — above all the UI language, and the
-   missing reference image.
+5. The Player Card questions in Part 4. The UI language and the reference
+   image were settled 2026-10-16; see "Decided" there.
 
 ---
 
@@ -1022,7 +1022,8 @@ Build outward, not rewrite.
 > reproduced verbatim except that every heading is one level lower (`#`
 > became `##`, and so on), so its sections nest under this part instead of
 > colliding with the document's own. The reference image it calls the
-> mandatory basis for the design **has not been received**.
+> mandatory basis for the design was received later the same day; it is not
+> stored in this repository (see "Decided" in Part 4).
 
 <div dir="rtl">
 
@@ -1895,8 +1896,7 @@ must not hard-code the reference image's sample values.
 ## Conflicts with the main spec (Part 1)
 
 1. **UI language.** Part 1: "The UI language must be English." Part 3: Hebrew,
-   RTL. Undecided whether Hebrew applies to the Player Card only or the whole
-   product.
+   RTL. *Decided 2026-10-16:* both, switchable — see "Decided" below.
 2. **View Portfolios button.** Part 1 lists it on the Player Card as the
    subscriber's route into Dashboard 2. Part 3 does not include it and forbids
    adding components it does not define, which as written leaves no route
@@ -1937,12 +1937,8 @@ must not hard-code the reference image's sample values.
   deferred.
 - **Nickname rules.** Case sensitivity, allowed characters and length, and
   whether and how often it can be changed ("subject to system rules").
-- **Month boundary for 9.4.** Which time zone: Israel time and New York market
-  time start the month at different moments.
 - **Lock for 9.4.** No minimum-portfolios condition is stated, unlike 9.3. Is
   that intended?
-- **Ties.** Which portfolio 4.6 / 9.5 pick when two share the highest return
-  (matters for 9.5, which shows a name).
 - **Which return.** Part 3 says "return" without qualification; Part 1
   requires game-earned capital never to count as return, so these should be
   the flow-adjusted returns from the metric engine.
@@ -1972,6 +1968,30 @@ Defined well enough to implement without inventing rules:
   and awards, competitions and entries, progression — as empty structures,
   with no invented values.
 
-Blocked: the UI on the reference image and the language ruling; 9.4 in
-production on NAV history; XP, levels and titles on the deferred scoring
-rules; anything taking money on the legal review.
+Blocked: 9.4 in production on NAV history; XP, levels and titles on the
+deferred scoring rules; anything taking money on the legal review. The UI is
+no longer blocked: the reference image arrived and the language is decided.
+
+## Decided (2026-10-16)
+
+- **UI language: Hebrew and English, switchable.** Hebrew is right-to-left
+  and English left-to-right, with every string in translation files. This
+  overrides Part 1's English-only rule and satisfies Part 3's Hebrew RTL.
+- **Reference image received.** It matches Part 3's layout. Where it differs,
+  Part 3's text decides the data, as Part 3 itself instructs:
+  - Name: the image shows a full name above the nickname; the text makes the
+    nickname the largest, with an optional first name below.
+  - Competitions, last row: the image shows "highest rank"; the text counts
+    first-place finishes.
+  - Player Performance: the image has five rows including "monthly profit
+    rate"; the text has six, with average monthly return and the top
+    portfolio's return.
+  - Game Progress: the text also requires the current level number.
+  - The subtitle under the page title appears only in the image and is left
+    out.
+
+  The image is not stored in this repository: it contains a photograph of a
+  person, and the repository may be public.
+- **Month boundary for 9.4: Israel time** (`Asia/Jerusalem`), implemented in
+  the metric engine as `MONTH_TIME_ZONE`.
+- **Ties for 4.6 / 9.5: the portfolio opened first**, then the lower id.
