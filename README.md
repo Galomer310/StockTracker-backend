@@ -160,6 +160,7 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | Method | Path | |
 |---|---|---|
 | GET | `/players/me/card` | Your Player Card. Every figure is calculated on the server; figures without data or rules yet come back as locked or unavailable, with the reason. |
+| PATCH | `/players/me` | Change your bio (at most 100 characters) and first name (at most 50). The nickname and picture cannot be changed yet. |
 
 ### Market data — `/stocks`
 
