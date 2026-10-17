@@ -86,6 +86,7 @@ export const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     error: "Too many failed login attempts. Please try again later.",
+    code: "TOO_MANY_LOGIN_ATTEMPTS",
   },
 });
 
@@ -98,6 +99,7 @@ export const registerLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     error: "Too many accounts created from this address. Please try again later.",
+    code: "TOO_MANY_REGISTRATIONS",
   },
 });
 

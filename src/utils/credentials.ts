@@ -38,29 +38,45 @@ const OBVIOUS_PASSWORDS = new Set([
   "investments", "portfolio", "stocktracker",
 ]);
 
+// The code lets a client show the reason in its own language; the error is
+// the English wording, unchanged for clients that show the server's text.
+export type CredentialErrorCode =
+  | "PASSWORD_NOT_TEXT"
+  | "PASSWORD_TOO_SHORT"
+  | "PASSWORD_TOO_LONG"
+  | "PASSWORD_TOO_COMMON"
+  | "PASSWORD_TOO_SIMPLE"
+  | "EMAIL_NOT_TEXT"
+  | "EMAIL_TOO_LONG"
+  | "EMAIL_INVALID";
+
 export interface Invalid {
   error: string;
+  code: CredentialErrorCode;
 }
 
 // Returns null when the password is acceptable, or the reason it is not.
 export const validatePassword = (password: unknown): Invalid | null => {
   if (typeof password !== "string") {
-    return { error: "Password must be text." };
+    return { error: "Password must be text.", code: "PASSWORD_NOT_TEXT" };
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
     return {
       error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters. A short phrase you can remember is stronger than a short jumble.`,
+      code: "PASSWORD_TOO_SHORT",
     };
   }
   if (Buffer.byteLength(password, "utf8") > MAX_PASSWORD_BYTES) {
     return {
       error: `Password must be ${MAX_PASSWORD_BYTES} bytes or fewer.`,
+      code: "PASSWORD_TOO_LONG",
     };
   }
   // Compared lowercased: "PASSWORD123" is no better than "password123".
   if (OBVIOUS_PASSWORDS.has(password.toLowerCase())) {
     return {
       error: "That password appears in common breach lists. Please choose another.",
+      code: "PASSWORD_TOO_COMMON",
     };
   }
   // A single repeated character clears the length rule but has almost no
@@ -68,6 +84,7 @@ export const validatePassword = (password: unknown): Invalid | null => {
   if (new Set(password).size < 5) {
     return {
       error: "Password must use at least 5 different characters.",
+      code: "PASSWORD_TOO_SIMPLE",
     };
   }
   return null;
@@ -85,13 +102,13 @@ export const MAX_EMAIL_LENGTH = 254; // The SMTP path limit.
 
 export const validateEmail = (email: unknown): Invalid | null => {
   if (typeof email !== "string") {
-    return { error: "Email must be text." };
+    return { error: "Email must be text.", code: "EMAIL_NOT_TEXT" };
   }
   if (email.length > MAX_EMAIL_LENGTH) {
-    return { error: "Email address is too long." };
+    return { error: "Email address is too long.", code: "EMAIL_TOO_LONG" };
   }
   if (!EMAIL_SHAPE.test(email)) {
-    return { error: "Please enter a valid email address." };
+    return { error: "Please enter a valid email address.", code: "EMAIL_INVALID" };
   }
   return null;
 };
