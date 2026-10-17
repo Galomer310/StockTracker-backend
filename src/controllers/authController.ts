@@ -54,11 +54,11 @@ export const register = async (
   if (passwordProblem) return res.status(400).json(passwordProblem);
 
   const name = typeof display_name === "string" ? display_name.trim() : "";
-  if (!name) return res.status(400).json({ error: "Display name is required" });
+  if (!name) return res.status(400).json({ error: "Display name is required", code: "DISPLAY_NAME_REQUIRED" });
   if (name.length > 40)
     return res
       .status(400)
-      .json({ error: "Display name must be 40 characters or fewer" });
+      .json({ error: "Display name must be 40 characters or fewer", code: "DISPLAY_NAME_TOO_LONG" });
 
   const address = normaliseEmail(email as string);
 
@@ -72,7 +72,7 @@ export const register = async (
       [address]
     );
     if (existingUser.rows.length > 0)
-      return res.status(409).json({ error: "Email already exists" });
+      return res.status(409).json({ error: "Email already exists", code: "EMAIL_TAKEN" });
 
     const hashedPassword = await bcrypt.hash(password as string, BCRYPT_ROUNDS);
 
@@ -96,7 +96,7 @@ export const login = async (
 ) => {
   const { email, password } = req.body;
   if (typeof email !== "string" || typeof password !== "string" || !email || !password)
-    return res.status(400).json({ error: "Email and password are required" });
+    return res.status(400).json({ error: "Email and password are required", code: "CREDENTIALS_REQUIRED" });
 
   try {
     // LOWER() on the column rather than storing everything normalised in one
@@ -120,7 +120,7 @@ export const login = async (
     // One message for both "no such account" and "wrong password". Telling
     // them apart hands an attacker a free account-enumeration oracle.
     if (!user || !isPasswordValid)
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res.status(401).json({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
 
     /* Upgrade the stored hash if it was made at a lower cost.
        Two things depend on this. The obvious one is that accounts created
