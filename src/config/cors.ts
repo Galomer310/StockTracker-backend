@@ -51,7 +51,9 @@ export const corsOptions: CorsOptions = {
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new CorsError(origin));
   },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  // PATCH is for profile edits (PATCH /players/me). A method missing here is
+  // refused at the browser's preflight, which server-side tests never see.
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   // X-Portfolio-Id carries which of the user's portfolios the request acts on.
   // A header the browser is not told it may send is stripped at the preflight,
   // so omitting it here would make every trade fail with "no portfolio

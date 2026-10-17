@@ -1,5 +1,5 @@
 import express from "express";                 // Import express
-import { getMyPlayerCard } from "../controllers/playerController";
+import { getMyPlayerCard, updateMyProfile } from "../controllers/playerController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { socialLimiter } from "../middleware/rateLimiter";       // Per-user limit
 
@@ -12,5 +12,8 @@ router.use(authenticateUser, socialLimiter);
 
 // GET /players/me/card - the signed-in player's Player Card
 router.get("/me/card", getMyPlayerCard);
+
+// PATCH /players/me - change your own bio and first name
+router.patch("/me", updateMyProfile);
 
 export default router;                         // Export the router

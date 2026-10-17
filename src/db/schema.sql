@@ -202,6 +202,12 @@ BEGIN
     ALTER TABLE users ADD CONSTRAINT users_bio_length CHECK (char_length(bio) <= 100);
   END IF;
 
+  -- Not a spec limit: the spec gives the first name none. A placeholder cap,
+  -- matching FIRST_NAME_MAX_LENGTH in src/services/playerProfile.ts.
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_first_name_length') THEN
+    ALTER TABLE users ADD CONSTRAINT users_first_name_length CHECK (char_length(first_name) <= 50);
+  END IF;
+
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'portfolios_status_valid') THEN
     ALTER TABLE portfolios ADD CONSTRAINT portfolios_status_valid CHECK (status IN ('active', 'closed'));
   END IF;
