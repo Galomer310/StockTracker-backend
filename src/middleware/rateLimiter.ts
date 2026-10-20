@@ -12,7 +12,7 @@ const byUser = (req: Request): string => {
   return userId !== undefined ? `user:${userId}` : "anonymous";
 };
 
-// Market data. These routes spend the Alpha Vantage daily allowance.
+// Market data. These routes spend the Massive per-minute allowance.
 export const stockApiLimiter = rateLimit({
   windowMs: 60 * 1000, // Rolling one minute window
   limit: 60,           // 60 market-data requests per user per minute
@@ -29,7 +29,7 @@ export const stockApiLimiter = rateLimit({
 // This exists to stop a runaway client hammering the database, not to ration
 // normal use.
 //
-// Note that POST /watchlist can additionally spend Alpha Vantage budget, so
+// Note that POST /watchlist can additionally spend market data budget, so
 // that route also carries stockApiLimiter - a user's total market-data spend
 // is then capped across /stocks and /watchlist together rather than per route.
 export const watchlistLimiter = rateLimit({

@@ -1,15 +1,15 @@
 /* ===========================================================================
    US market open/closed, derived from the clock.
    ---------------------------------------------------------------------------
-   Alpha Vantage does expose MARKET_STATUS, but the client polls this every 60
-   seconds and the free budget is 25 requests A DAY - polling it would burn the
-   entire allowance in under half an hour, leaving nothing for actual prices.
-   The banner it drives is cosmetic, so it is computed locally for free.
+   Massive does expose a market status endpoint, but the client polls this
+   every 60 seconds and the free budget is 5 requests a minute - polling it
+   would take a fifth of the allowance from actual prices, for a banner that is
+   cosmetic. So it is computed locally for free.
 
    Known limitation: this does not know about market holidays, so on Christmas
    it will report "open" during what would be regular hours. Regular weekday
    and weekend behaviour is correct. If holiday accuracy matters later, either
-   spend one cached MARKET_STATUS call per day or add a holiday table.
+   spend one cached market status call per day or add a holiday table.
    =========================================================================== */
 
 const OPEN_MINUTES = 9 * 60 + 30;  // 09:30 ET

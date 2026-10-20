@@ -13,7 +13,7 @@ router.get("/", getWatchlist);
 
 // POST route: record a buy.
 //
-// Buys and sells are the portfolio routes that can spend Alpha Vantage
+// Buys and sells are the portfolio routes that can spend market data
 // budget: both execute at the market price, and an uncached symbol costs a
 // live quote. They therefore also carry the market data limiter, so a user's
 // total spend is capped across /stocks and /watchlist together instead of

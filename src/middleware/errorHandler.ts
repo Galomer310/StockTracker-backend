@@ -4,7 +4,7 @@ import {
   UpstreamThrottledError,
   UpstreamUnavailableError,
   UpstreamDataError,
-} from "../services/alphaVantage";
+} from "../services/massive";
 import { CorsError } from "../config/cors";
 
 /* ===========================================================================
@@ -75,7 +75,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   } else if (err instanceof QuotaExhaustedError) {
     status = 429;
     message =
-      "Daily market data limit reached. Alpha Vantage allows 25 requests per day on the free plan; it resets at midnight UTC.";
+      "Market data is busy: the current plan allows 5 requests a minute. Please try again in a minute.";
     code = "QUOTA_EXHAUSTED";
   } else if (err instanceof UpstreamThrottledError) {
     status = 429;
