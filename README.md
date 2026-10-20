@@ -28,8 +28,9 @@ The frontend lives in
 - **Leaderboard and public portfolios.** Ranked by percentage return against
   the starting $10,000. Other players see percentages only, never money.
 - **Feed.** Every trade by every player, with reactions and replies.
-- **Market data.** A proxy in front of Alpha Vantage, with caching and a
-  daily request budget shared across the server.
+- **Market data.** A proxy in front of Massive (formerly Polygon.io), with
+  caching and a per-minute request budget shared across the server. On the
+  free plan prices are end of day, so trades execute at the latest close.
 - **Metric engine** (`src/metrics/`). Pure, versioned calculation functions
   for the product spec's metrics: returns that exclude game-earned capital,
   volatility, drawdown, concentration, risk score, exposures, benchmarks and
@@ -46,7 +47,7 @@ so far are in [`docs/PRODUCT-SPEC-AND-GAP.md`](docs/PRODUCT-SPEC-AND-GAP.md).
 - Node.js 22, Express 4, TypeScript
 - PostgreSQL (hosted on Neon)
 - JWT authentication, bcrypt password hashing
-- Alpha Vantage for market data
+- Massive for market data (US stocks only)
 - helmet, CORS allowlist, per-route rate limiting
 - Vitest for tests
 
@@ -64,7 +65,7 @@ Create a `.env` file:
 DATABASE_URL=postgres://user:password@host/dbname
 JWT_SECRET=at-least-32-random-characters
 REFRESH_SECRET=a-different-value-of-at-least-32-characters
-ALPHA_VANTAGE_API_KEY=your-key
+MASSIVE_API_KEY=your-key
 ```
 
 The server refuses to start without `DATABASE_URL`, `JWT_SECRET` and
@@ -91,9 +92,9 @@ Postgres without SSL, add `?sslmode=disable` to `DATABASE_URL`.
 | `NODE_ENV` | `production` in deployment. `development` adds error detail to responses; anything else keeps it out. |
 | `CORS_ORIGINS` | Comma-separated origins allowed to call the API. Defaults to the local Vite dev server; set it to the frontend's domain in deployment. |
 | `TRUST_PROXY` | Number of proxies in front of the server (usually `1` on Render), so rate limits see real client addresses. Leave unset without a proxy. |
-| `ALPHA_VANTAGE_DAILY_LIMIT` | Daily request budget (default 25, the free tier). |
-| `ALPHA_VANTAGE_MIN_GAP_MS` | Minimum gap between requests (default 1200). |
-| `ALPHA_VANTAGE_PREMIUM` | `true` on a paid plan, to enable intraday data. |
+| `MASSIVE_REQUESTS_PER_MINUTE` | Request budget per rolling minute (default 5, the free plan). |
+| `MASSIVE_MAX_WAIT_MS` | Longest a request waits for a free slot before failing, so a cached copy can be served instead (default 15000). |
+| `MASSIVE_INTRADAY` | `true` on a paid plan, to enable intraday bars. |
 
 ### Scripts
 
@@ -184,7 +185,7 @@ src/
   routes/           one router per area above
   controllers/      request handlers
   middleware/       authentication, rate limits, error handling
-  services/         Alpha Vantage client, market clock
+  services/         Massive client, market clock
   metrics/          the metric engine and its tests
   db/               schema.sql, migration, seed and reset scripts
 docs/               product spec and gap analysis

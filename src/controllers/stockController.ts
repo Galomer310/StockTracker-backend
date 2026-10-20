@@ -14,24 +14,28 @@ import {
   UpstreamThrottledError,
   UpstreamUnavailableError,
   UpstreamDataError,
-} from "../services/alphaVantage";
+  MAX_HISTORY_DAYS,
+  Bar,
+} from "../services/massive";
 
 /* ===========================================================================
-   Market data endpoints, backed by Alpha Vantage.
+   Market data endpoints, backed by Massive.
    ---------------------------------------------------------------------------
-   The free tier allows 25 requests per day, so caching here is not an
-   optimisation, it is what makes the app usable. Three layers, cheapest first:
+   The free plan allows 5 requests per minute and only moves once a day, at
+   the close, so caching here is not an optimisation, it is what makes the app
+   usable. Three layers, cheapest first:
 
      1. the `stocks` table    - survives restarts, 24h, drives the leaderboard
      2. the in-memory cache   - per-endpoint TTLs
-     3. a stale cache read    - when the budget is gone, last known beats none
+     3. a stale cache read    - when the minute's budget is gone, last known
+                                beats none
 
    Responses carry X-Cache (HIT/MISS/STALE) and X-Quota-Remaining so the
    client, and you, can see exactly where a number came from.
    =========================================================================== */
 
 // Reference data barely changes; prices change daily. TTLs reflect that, and
-// are long because the budget is tiny.
+// are long because the budget is small.
 const TTL = {
   quote: 60 * 60 * 1000,            // 1 hour
   bars: 12 * 60 * 60 * 1000,        // 12 hours
@@ -54,6 +58,19 @@ const send = (
   res.json(payload);
 };
 
+// Upstream fetches currently running, by cache key. The stock page asks for
+// the profile and the chart at the same moment, and both need the same bars;
+// without this they would spend two of the minute's five requests on one copy.
+const inflight = new Map<string, Promise<unknown>>();
+
+const fetchOnce = <T>(key: string, fetcher: () => Promise<T>): Promise<T> => {
+  const running = inflight.get(key);
+  if (running) return running as Promise<T>;
+  const started = fetcher().finally(() => inflight.delete(key));
+  inflight.set(key, started);
+  return started;
+};
+
 /**
  * Serve `key` from cache, otherwise fetch it. If the fetch fails because the
  * daily budget is gone or the API throttled us, fall back to the stale copy
@@ -69,7 +86,7 @@ const withCache = async <T>(
   if (hit !== undefined) return { value: hit, state: "HIT" };
 
   try {
-    const value = await fetcher();
+    const value = await fetchOnce(key, fetcher);
     setCached(key, value, ttlMs);
     return { value, state: "MISS" };
   } catch (error) {
@@ -85,7 +102,7 @@ const withCache = async <T>(
       res.status(429).json({
         error:
           error instanceof QuotaExhaustedError
-            ? "Daily market data limit reached. Alpha Vantage allows 25 requests per day on the free plan; it resets at midnight UTC."
+            ? "Market data is busy: the current plan allows 5 requests a minute. Please try again in a minute."
             : "Market data provider is throttling requests. Please try again shortly.",
         quota: getQuotaStatus(),
       });
@@ -96,7 +113,7 @@ const withCache = async <T>(
     if (error instanceof UpstreamUnavailableError) {
       res.status(501).json({
         error:
-          "This data is not available on the current Alpha Vantage plan. Intraday prices require a premium subscription.",
+          "This data is not available on the current market data plan.",
       });
       return null;
     }
@@ -113,15 +130,33 @@ const withCache = async <T>(
 };
 
 // GET /stocks/market-status
-// Derived from the clock, so it costs nothing against the daily budget.
+// Derived from the clock, so it costs nothing against the request budget.
 export const getMarketStatus = async (_req: Request, res: Response): Promise<void> => {
   send(res, computeMarketStatus(), "HIT");
 };
 
 // GET /stocks/quota
-// How much of today's request budget is left.
+// How much of this minute's request budget is left.
 export const getQuota = async (_req: Request, res: Response): Promise<void> => {
   res.json(getQuotaStatus());
+};
+
+// Persist a fetched price so the next 24 hours are free, and so the
+// leaderboard can value this symbol without any API call at all. Buys read
+// it too, so buying from the stock page does not spend a request of its own.
+const rememberPrice = async (ticker: string, price: number): Promise<void> => {
+  if (!price) return;
+  try {
+    await pool.query(
+      `INSERT INTO stocks (stock_symbol, last_price, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (stock_symbol)
+       DO UPDATE SET last_price = $2, updated_at = NOW()`,
+      [ticker, price]
+    );
+  } catch (error) {
+    console.error("Error writing stocks cache:", (error as Error).message);
+  }
 };
 
 // GET /stocks/:ticker
@@ -153,25 +188,12 @@ export const getStockData = async (req: Request, res: Response): Promise<void> =
 
   const result = await withCache(res, `quote:${ticker}`, TTL.quote, () => fetchQuote(ticker));
   if (!result) return;
-
-  // Persist so the next 24 hours are free, and so the leaderboard can value
-  // this symbol without any API call at all.
-  try {
-    await pool.query(
-      `INSERT INTO stocks (stock_symbol, last_price, updated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (stock_symbol)
-       DO UPDATE SET last_price = $2, updated_at = NOW()`,
-      [ticker, result.value.price]
-    );
-  } catch (error) {
-    console.error("Error writing stocks cache:", (error as Error).message);
-  }
+  await rememberPrice(ticker, result.value.price);
 
   send(res, {
     stock_symbol: ticker,
     last_price: result.value.price,
-    source: "alphavantage",
+    source: "massive",
   }, result.state);
 };
 
@@ -181,18 +203,42 @@ export const getQuoteDetail = async (req: Request, res: Response): Promise<void>
   const ticker = String(req.params.ticker || "").toUpperCase();
   const result = await withCache(res, `quote:${ticker}`, TTL.quote, () => fetchQuote(ticker));
   if (!result) return;
+  if (result.state === "MISS") await rememberPrice(ticker, result.value.price);
   send(res, result.value, result.state);
 };
 
+// Two years of daily bars, shared by the charts and the 52-week range. One
+// request returns the whole span, so every range is cut from this one copy.
+const barsKey = (ticker: string) => `bars:${ticker}`;
+const fetchAllBars = (ticker: string) => fetchDailyBars(ticker, MAX_HISTORY_DAYS);
+
 // GET /stocks/:ticker/details
-// Company fundamentals. Replaces the two separate Polygon reference calls.
+// Company profile. The plan has no fundamentals, so the 52-week range is
+// worked out from the daily bars, which the chart on the same page needs too.
 export const getTickerDetails = async (req: Request, res: Response): Promise<void> => {
   const ticker = String(req.params.ticker || "").toUpperCase();
   const result = await withCache(res, `overview:${ticker}`, TTL.overview, () =>
     fetchOverview(ticker)
   );
   if (!result) return;
-  send(res, result.value, result.state);
+
+  // Best effort: a missing range should not cost the user the whole profile.
+  let bars = getCached<Bar[]>(barsKey(ticker));
+  if (!bars) {
+    try {
+      bars = await fetchOnce(barsKey(ticker), () => fetchAllBars(ticker));
+      setCached(barsKey(ticker), bars, TTL.bars);
+    } catch {
+      bars = getCachedStale<Bar[]>(barsKey(ticker))?.value;
+    }
+  }
+  const lastYear = (bars ?? []).filter((bar) => bar.t >= Date.now() - 365 * 24 * 60 * 60 * 1000);
+  const overview = { ...result.value };
+  if (lastYear.length > 0) {
+    overview.week52_high = Math.max(...lastYear.map((bar) => bar.h));
+    overview.week52_low = Math.min(...lastYear.map((bar) => bar.l));
+  }
+  send(res, overview, result.state);
 };
 
 // GET /stocks/:ticker/news
@@ -209,30 +255,24 @@ export const getTickerNews = async (req: Request, res: Response): Promise<void> 
 // one point; everything longer uses daily bars.
 export const getAggregates = async (req: Request, res: Response): Promise<void> => {
   const ticker = String(req.params.ticker || "").toUpperCase();
-  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 730);
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), MAX_HISTORY_DAYS);
 
-  // Intraday is a premium Alpha Vantage endpoint, so it is off unless the
-  // account has been upgraded. Without it a 1-day request falls through to
+  // Intraday bars are not on the free Massive plan, so they are off unless the
+  // account has been upgraded. Without them a 1-day request falls through to
   // daily bars below, which is the most the free plan can give.
-  if (days <= 1 && process.env.ALPHA_VANTAGE_PREMIUM === "true") {
+  if (days <= 1 && process.env.MASSIVE_INTRADAY === "true") {
     const result = await withCache(res, `intraday:${ticker}`, TTL.intraday, () =>
-      fetchIntradayBars(ticker, "5min")
+      fetchIntradayBars(ticker, 5)
     );
     if (!result) return;
     send(res, { bars: result.value, interval: "5min" }, result.state);
     return;
   }
 
-  // Bucket the cache key so 30d and 90d do not thrash one another, and so a
-  // 30-day view can be served from an already-fetched 90-day window.
-  const bucket = days <= 7 ? "7" : days <= 30 ? "30" : days <= 90 ? "90" : days <= 365 ? "365" : "730";
-
-  const result = await withCache(res, `bars:${ticker}:${bucket}`, TTL.bars, () =>
-    fetchDailyBars(ticker, Number(bucket))
-  );
+  const result = await withCache(res, barsKey(ticker), TTL.bars, () => fetchAllBars(ticker));
   if (!result) return;
 
-  // Trim the cached bucket down to exactly what was asked for.
+  // Trim the shared two-year copy down to exactly what was asked for.
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   send(res, { bars: result.value.filter((bar) => bar.t >= cutoff), interval: "1day" }, result.state);
 };

@@ -1,7 +1,7 @@
 import { RequestHandler } from "express";      // Import Express types
 import pool from "../config/db";                // Import the PostgreSQL pool from the config
 import dotenv from "dotenv";                    // Import dotenv to load environment variables
-import { fetchQuote } from "../services/alphaVantage"; // Market data client (budgeted + serialised)
+import { fetchQuote } from "../services/massive"; // Market data client (budgeted + serialised)
 
 dotenv.config();                                // Load environment variables
 

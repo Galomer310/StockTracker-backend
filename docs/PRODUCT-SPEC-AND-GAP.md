@@ -961,6 +961,11 @@ The provider chosen in phase 0 must cover TASE listings and fundamentals, not
 only US prices. The tech mapping and ETF classification are internal,
 controlled tables either way.
 
+**Status 2026-10-20:** replaced with Massive (formerly Polygon.io) on its free
+Basic plan; see Decided. That removes the 25-a-day ceiling (now 5 a minute, no
+daily cap, two years of daily history) but not the blocker: still no TASE, no
+fundamentals, no intraday, and prices are end of day.
+
 ## Rough sizing
 
 Dependency-ordered. ±50%. Phases 0–10 carried over from 2026-08-28; 11–16
@@ -1995,3 +2000,13 @@ no longer blocked: the reference image arrived and the language is decided.
 - **Month boundary for 9.4: Israel time** (`Asia/Jerusalem`), implemented in
   the metric engine as `MONTH_TIME_ZONE`.
 - **Ties for 4.6 / 9.5: the portfolio opened first**, then the lower id.
+- **Market data provider: Massive, free Basic plan** (2026-10-20). Alpha
+  Vantage is removed. Checked against the live API with the account's key:
+  daily bars for two years, ticker overview, news with per-ticker sentiment,
+  ticker search, dividends and market status are included; snapshots, last
+  trade, intraday bars, fundamentals (P/E, statements) and any non-US exchange
+  are not. Consequence accepted knowingly: **trades execute at the latest
+  daily close**, so a player can buy during a session at yesterday's price
+  after seeing today's move. Upgrading the plan closes that gap; the code
+  needs only `MASSIVE_REQUESTS_PER_MINUTE` and `MASSIVE_INTRADAY` changed, plus
+  a snapshot-based quote.
