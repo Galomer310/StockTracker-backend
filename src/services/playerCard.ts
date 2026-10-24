@@ -49,6 +49,8 @@ export interface PlayerRow {
   nickname: string | null;
   first_name: string | null;
   avatar_url: string | null;
+  /** A gallery avatar's id (src/services/playerProfile.ts), or null. */
+  avatar_id: string | null;
   bio: string;
 }
 
@@ -139,6 +141,7 @@ export const buildPlayerCard = (
       nickname: player.nickname,
       first_name: player.first_name,
       avatar_url: player.avatar_url,
+      avatar_id: player.avatar_id,
       bio: player.bio,
     },
     progression: progression

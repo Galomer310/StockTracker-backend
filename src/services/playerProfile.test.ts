@@ -48,6 +48,29 @@ describe("validateProfileUpdate", () => {
     expect(validateProfileUpdate({ bio: "ok", level: 99 })).toMatchObject({ ok: false, code: "NOT_EDITABLE", field: "level" });
   });
 
+  it("accepts a gallery avatar, and null for the default picture", () => {
+    expect(validateProfileUpdate({ avatar_id: "warrior" })).toEqual({ ok: true, update: { avatar_id: "warrior" } });
+    expect(validateProfileUpdate({ avatar_id: null })).toEqual({ ok: true, update: { avatar_id: null } });
+    expect(validateProfileUpdate({ bio: "Hi", avatar_id: "investor" })).toEqual({
+      ok: true,
+      update: { bio: "Hi", avatar_id: "investor" },
+    });
+  });
+
+  it("refuses an avatar outside the gallery", () => {
+    for (const avatar_id of ["Warrior", "dragon", "", 3, ["warrior"], "https://example.com/me.png"]) {
+      expect(validateProfileUpdate({ avatar_id })).toMatchObject({ ok: false, code: "INVALID_AVATAR", field: "avatar_id" });
+    }
+  });
+
+  it("still refuses an uploaded picture", () => {
+    expect(validateProfileUpdate({ avatar_url: "https://example.com/me.png" })).toMatchObject({
+      ok: false,
+      code: "NOT_EDITABLE",
+      field: "avatar_url",
+    });
+  });
+
   it("refuses wrong types", () => {
     expect(validateProfileUpdate({ bio: 5 })).toMatchObject({ ok: false, code: "INVALID_TYPE", field: "bio" });
     expect(validateProfileUpdate({ bio: null })).toMatchObject({ ok: false, code: "INVALID_TYPE" });

@@ -162,7 +162,7 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | Method | Path | |
 |---|---|---|
 | GET | `/players/me/card` | Your Player Card. Every figure is calculated on the server; figures without data or rules yet come back as locked or unavailable, with the reason. |
-| PATCH | `/players/me` | Change your bio (at most 100 characters) and first name (at most 50). The nickname and picture cannot be changed yet. |
+| PATCH | `/players/me` | Change your bio (at most 100 characters), first name (at most 50) and avatar (`avatar_id`, one of the gallery's ids, or null for the default). The nickname cannot be changed yet, and pictures cannot be uploaded. |
 | GET | `/players/me/titles` | Your title collection: every level title, marked unlocked or locked, and the active one. |
 | PUT | `/players/me/title` | Make an unlocked title the active one. A locked title is refused (403 `TITLE_NOT_OWNED`). |
 | GET | `/players/me/achievements` | All game achievements with your state and progress for each, and per-category counts. |

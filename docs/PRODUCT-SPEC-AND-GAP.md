@@ -2138,3 +2138,19 @@ follower count is real. The Follow button is on another player's portfolio
 page; the lists open from the Followers figure on your own card. From Fan to
 Insider now waits only for subscriptions, and Ready, Set, Invest! only for
 usernames.
+
+## Avatar gallery (2026-10-24)
+
+The first part of spec 3.1's "platform avatar gallery". Gal approved the
+style from a five-avatar study (flat illustrated portraits on a jewel-tone
+ground inside a champagne-gold ring) and plans 25 in all. The first five:
+businessperson, warrior, entrepreneur, investor, freelancer.
+
+The artwork ships with the frontend as SVG; the database stores only the
+chosen id, in `users.avatar_id` (null = the default picture, the nickname's
+initial). `PATCH /players/me` accepts `avatar_id`, one of `AVATAR_IDS` in
+`src/services/playerProfile.ts` or null; anything else is refused with
+`INVALID_AVATAR`. The list lives in code rather than a CHECK so the gallery
+can grow without a migration; ids are never renamed or removed once
+offered. The player picks one in the Player Card's edit mode. Uploads
+(`avatar_url`) and special platform images are still not built.

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildPlayerCard, PlayerRow, PortfolioRow } from "./playerCard";
 import { progressFor } from "../progression/levels";
 
-const player: PlayerRow = { nickname: null, first_name: null, avatar_url: null, bio: "" };
+const player: PlayerRow = { nickname: null, first_name: null, avatar_url: null, avatar_id: null, bio: "" };
 const at = new Date("2026-10-16T12:00:00Z");
 let id = 1;
 const pf = (return_pct: number, over: Partial<PortfolioRow> = {}): PortfolioRow => ({
@@ -79,7 +79,7 @@ describe("buildPlayerCard", () => {
   });
 
   it("passes identity through unchanged and stamps the model and time", () => {
-    const me = { nickname: "growthhunter", first_name: "Roee", avatar_url: null, bio: "Growth investor." };
+    const me = { nickname: "growthhunter", first_name: "Roee", avatar_url: null, avatar_id: "warrior", bio: "Growth investor." };
     const card = buildPlayerCard(me, [], at);
     expect(card.player).toEqual(me);
     expect(card.model).toBe("player_card_model_v1");
