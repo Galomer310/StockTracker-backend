@@ -7,6 +7,13 @@ import {
   getMyTitles,
   setMyTitle,
 } from "../controllers/progressionController";
+import {
+  followPlayer,
+  getFollowState,
+  getMyFollowers,
+  getMyFollowing,
+  unfollowPlayer,
+} from "../controllers/followController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { socialLimiter } from "../middleware/rateLimiter";       // Per-user limit
 
@@ -33,5 +40,12 @@ router.get("/me/achievements", getMyAchievements);
 // Unseen unlock notices and the pending title ceremony, and marking them seen
 router.get("/me/progression/notifications", getMyNotifications);
 router.post("/me/progression/acknowledge", acknowledgeMyNotifications);
+
+// Following: your own lists, and following or unfollowing another player
+router.get("/me/following", getMyFollowing);
+router.get("/me/followers", getMyFollowers);
+router.get("/:id/follow", getFollowState);
+router.put("/:id/follow", followPlayer);
+router.delete("/:id/follow", unfollowPlayer);
 
 export default router;                         // Export the router

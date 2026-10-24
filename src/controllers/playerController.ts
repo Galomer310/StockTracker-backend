@@ -50,8 +50,10 @@ export const getMyPlayerCard: RequestHandler = async (req, res, next) => {
       console.error("Error loading progression for the player card:", error);
     }
 
+    const followers = await pool.query("SELECT COUNT(*)::int AS n FROM follows WHERE followee_id = $1", [userId]);
+
     const rows = portfolios.rows.map((row) => ({ ...valuePortfolio(row), status: row.status }));
-    res.json(buildPlayerCard(user.rows[0], rows, new Date(), progression));
+    res.json(buildPlayerCard(user.rows[0], rows, new Date(), progression, followers.rows[0].n));
   } catch (error) {
     console.error("Error building player card:", error);
     next(error);
