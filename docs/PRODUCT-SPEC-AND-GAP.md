@@ -2065,10 +2065,12 @@ languages, conditions and XP.
 - Existing players: **history counts** (`backfill_history = true`). The
   switch exists: with it off, an account older than `xp_system_started_at`
   has its past recorded as unlocked with 0 XP and no notice.
-- Founding Member: **everyone who joined by a date** — the end date has not
-  been given yet. Until `founding_period.end` is set nobody qualifies. Set it
-  with: `UPDATE progression_settings SET value = '{"start": null, "end": "YYYY-MM-DD"}' WHERE key = 'founding_period';`
-  (inclusive end date).
+- Founding Member: **every account created on or before 2026-12-31**
+  (inclusive, no start date). It is a database setting, not code, so it is
+  set on production directly:
+  `UPDATE progression_settings SET value = '{"start": null, "end": "2026-12-31"}' WHERE key = 'founding_period';`
+  The schema's default stays empty, so a fresh database gives Founding
+  Member to nobody until its own period is set.
 
 ## Decided while building (flag if wrong)
 
@@ -2089,7 +2091,7 @@ languages, conditions and XP.
 
 ## Blocked by systems that do not exist yet
 
-Today 15 of the 62 can be earned (14 until the Founding Member date is set).
+Today 15 of the 62 can be earned.
 41 wait for a system that does not exist yet; they are in the catalog and in
 the collection, marked with what they wait for:
 
@@ -2110,6 +2112,5 @@ which need achievements from the blocked systems.
 ## Still open
 
 - The XP needed for each level (fill `level_thresholds`).
-- The Founding Member end date.
 - XP values beyond the proposed ones; Daily Login amounts; professional
   achievements and medals; competition rewards.
