@@ -189,6 +189,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bio        TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
+-- The avatar chosen from the built-in gallery: an id such as 'warrior',
+-- whose artwork ships with the frontend. Null means the default picture.
+-- The allowed ids are AVATAR_IDS in src/services/playerProfile.ts, not a
+-- CHECK, so the gallery can grow without a migration.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_id TEXT;
+
 -- Portfolio status. Active or closed only: "archived" is named in the spec but
 -- not defined. Every existing portfolio is active, and there is no way to
 -- close one yet, because what closing does to open positions is not decided.

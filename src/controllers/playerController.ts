@@ -20,7 +20,7 @@ export const getMyPlayerCard: RequestHandler = async (req, res, next) => {
   const userId = (req as any).user.id;
   try {
     const [user, portfolios] = await Promise.all([
-      pool.query("SELECT nickname, first_name, avatar_url, bio FROM users WHERE id = $1", [userId]),
+      pool.query("SELECT nickname, first_name, avatar_url, avatar_id, bio FROM users WHERE id = $1", [userId]),
       pool.query(
         `SELECT p.id, p.name, p.status, p.starting_balance, p.cash, p.created_at,
                 COALESCE(v.positions_value, 0) AS positions_value,
@@ -61,8 +61,8 @@ export const getMyPlayerCard: RequestHandler = async (req, res, next) => {
 };
 
 // PATCH /players/me
-// Changes the signed-in player's bio and/or first name. What may be edited,
-// and why the nickname and picture may not yet, is in
+// Changes the signed-in player's bio, first name and/or avatar. What may be
+// edited, and why the nickname and an uploaded picture may not yet, is in
 // src/services/playerProfile.ts. Answers with the player's identity as it
 // now stands, in the same shape as the card's `player`.
 export const updateMyProfile: RequestHandler = async (req, res, next) => {
@@ -74,13 +74,13 @@ export const updateMyProfile: RequestHandler = async (req, res, next) => {
   }
 
   // Column names come from the validated update's keys, which can only be
-  // bio and first_name; the values are always parameters.
+  // bio, first_name and avatar_id; the values are always parameters.
   const entries = Object.entries(result.update);
   const assignments = entries.map(([column], i) => `${column} = $${i + 1}`).join(", ");
   try {
     const updated = await pool.query(
       `UPDATE users SET ${assignments} WHERE id = $${entries.length + 1}
-       RETURNING nickname, first_name, avatar_url, bio`,
+       RETURNING nickname, first_name, avatar_url, avatar_id, bio`,
       [...entries.map(([, value]) => value), userId]
     );
     if (updated.rows.length === 0) {

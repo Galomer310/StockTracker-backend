@@ -2,13 +2,17 @@
    Player profile edits.
    ---------------------------------------------------------------------------
    What a player may change about themselves on the Player Card (spec 3.5,
-   11): the bio and the first name. Pure, so the rules can be tested without
-   a database.
+   11): the bio, the first name and the avatar. Pure, so the rules can be
+   tested without a database.
+
+   The avatar is chosen from a fixed gallery (AVATAR_IDS); the artwork lives
+   in the frontend and only its id is stored, in users.avatar_id.
 
    Deliberately NOT editable here:
    - nickname: mandatory and unique, but its rules (case sensitivity,
      allowed characters, length, how often it may change) are undecided;
-   - avatar: uploads need file storage, and the gallery has no artwork yet;
+   - avatar_url: an uploaded picture needs file storage, which does not
+     exist yet;
    - level, title, XP, and everything else the system sets - the spec says
      the player can never edit those.
    A request naming any of them is refused with the reason, rather than the
@@ -22,6 +26,12 @@ export const BIO_MAX_LENGTH = 100;
 // the field cannot hold arbitrary text; 50 is a placeholder to revisit.
 export const FIRST_NAME_MAX_LENGTH = 50;
 
+// The avatar gallery. Ids only: each must have artwork in the frontend
+// (src/components/avatars). Add new ones at the end; never rename or remove
+// one a player may have chosen.
+export const AVATAR_IDS = ["businessperson", "warrior", "entrepreneur", "investor", "freelancer"] as const;
+export type AvatarId = (typeof AVATAR_IDS)[number];
+
 export type ProfileErrorCode =
   | "INVALID_BODY"
   | "NOT_EDITABLE"
@@ -29,19 +39,22 @@ export type ProfileErrorCode =
   | "INVALID_TYPE"
   | "INVALID_CHARACTERS"
   | "BIO_TOO_LONG"
-  | "FIRST_NAME_TOO_LONG";
+  | "FIRST_NAME_TOO_LONG"
+  | "INVALID_AVATAR";
 
 export interface ProfileUpdate {
   bio?: string;
   /** null clears it: the first name is optional (spec 3.2). */
   first_name?: string | null;
+  /** null returns to the default picture (the nickname's initial). */
+  avatar_id?: AvatarId | null;
 }
 
 export type ProfileValidation =
   | { ok: true; update: ProfileUpdate }
   | { ok: false; code: ProfileErrorCode; field?: string; error: string };
 
-const EDITABLE = new Set(["bio", "first_name"]);
+const EDITABLE = new Set(["bio", "first_name", "avatar_id"]);
 
 const NOT_EDITABLE_REASON: Record<string, string> = {
   nickname: "The nickname cannot be changed yet; its rules are still being decided.",
@@ -74,7 +87,7 @@ export const validateProfileUpdate = (body: unknown): ProfileValidation => {
     if (!EDITABLE.has(key)) {
       return fail(
         "NOT_EDITABLE",
-        NOT_EDITABLE_REASON[key] ?? `"${key}" cannot be changed. Only bio and first_name can.`,
+        NOT_EDITABLE_REASON[key] ?? `"${key}" cannot be changed. Only bio, first_name and avatar_id can.`,
         key
       );
     }
@@ -109,8 +122,16 @@ export const validateProfileUpdate = (body: unknown): ProfileValidation => {
     update.first_name = name === "" ? null : name;
   }
 
+  if ("avatar_id" in fields) {
+    const id = fields.avatar_id;
+    if (id !== null && !AVATAR_IDS.includes(id as AvatarId)) {
+      return fail("INVALID_AVATAR", `The avatar must be one of: ${AVATAR_IDS.join(", ")}; or null for the default.`, "avatar_id");
+    }
+    update.avatar_id = id as AvatarId | null;
+  }
+
   if (Object.keys(update).length === 0) {
-    return fail("NOTHING_TO_UPDATE", "Nothing to change. Send bio, first_name, or both.");
+    return fail("NOTHING_TO_UPDATE", "Nothing to change. Send bio, first_name or avatar_id.");
   }
   return { ok: true, update };
 };
