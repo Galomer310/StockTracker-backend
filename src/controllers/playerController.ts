@@ -3,6 +3,7 @@ import pool from "../config/db";                // Shared PostgreSQL pool
 import { POSITION_VALUES, valuePortfolio } from "./portfolioController"; // One shared valuation
 import { buildPlayerCard } from "../services/playerCard";
 import { validateProfileUpdate } from "../services/playerProfile";
+import { cardProgression, syncProgression, syncProgressionSafely } from "../progression/service";
 
 /* ===========================================================================
    Players.
@@ -38,8 +39,19 @@ export const getMyPlayerCard: RequestHandler = async (req, res, next) => {
       return;
     }
 
+    // Progression is synced first so the card includes anything that became
+    // due since the last event. If it fails, the card still loads and says
+    // progression is unavailable.
+    let progression = null;
+    try {
+      await syncProgression(userId);
+      progression = await cardProgression(userId);
+    } catch (error) {
+      console.error("Error loading progression for the player card:", error);
+    }
+
     const rows = portfolios.rows.map((row) => ({ ...valuePortfolio(row), status: row.status }));
-    res.json(buildPlayerCard(user.rows[0], rows, new Date()));
+    res.json(buildPlayerCard(user.rows[0], rows, new Date(), progression));
   } catch (error) {
     console.error("Error building player card:", error);
     next(error);
@@ -73,6 +85,7 @@ export const updateMyProfile: RequestHandler = async (req, res, next) => {
       res.status(404).json({ error: "Player not found." });
       return;
     }
+    await syncProgressionSafely(userId); // The Introduction
     res.json({ player: updated.rows[0] });
   } catch (error) {
     console.error("Error updating player profile:", error);

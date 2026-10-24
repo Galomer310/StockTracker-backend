@@ -18,10 +18,13 @@
      from the metric engine (src/metrics/player.ts).
    - Month-to-date return needs each portfolio's value at the start of the
      month, which nothing records yet, so it is unavailable.
-   - Level, XP and titles are unavailable as not_defined: the XP rules are
-     deliberately not written yet, and inventing them is forbidden.
-   - Followers, subscribers, medals, achievements and competitions are zero,
-     which is true: none of those systems exists yet, so nobody has any.
+   - Level, XP, the active title and game achievements come from the
+     progression system (src/progression). XP per level is not decided, so
+     with no thresholds configured every player is level 1 and the progress
+     figures say so (thresholds_configured) rather than invent a target. If
+     progression could not be loaded, it is unavailable as missing_data.
+   - Followers, subscribers, medals and competitions are zero, which is
+     true: none of those systems exists yet, so nobody has any.
    =========================================================================== */
 
 import {
@@ -36,6 +39,8 @@ import {
   topPortfolio,
   TopPortfolio,
 } from "../metrics";
+import type { LevelProgress } from "../progression/levels";
+import type { TitleView } from "../progression/service";
 
 export const PLAYER_CARD_MODEL = "player_card_model_v1";
 
@@ -55,19 +60,19 @@ export interface PortfolioRow {
   return_pct: number;
 }
 
-export interface Progression {
-  level: number;
-  title: string;
-  xp: number;
-  next_level_xp: number;
-  next_level: number;
-  next_title: string;
+export interface Progression extends LevelProgress {
+  /** null until the player chooses a title. */
+  active_title: TitleView | null;
 }
 
-// Awards will have this shape once the banks exist; there are none yet.
+// Medals and game achievements share this shape. Medals do not exist yet.
 export interface Award {
   id: string;
   art: string;
+  /** Game achievements: their category, colour and rarity. */
+  category?: string;
+  accent_color?: string;
+  rarity?: string;
   name: { he: string; en: string };
   description: { he: string; en: string };
   condition: { he: string; en: string };
@@ -111,7 +116,18 @@ const competitionsOf = (s: CompetitionStats) => ({
   first_place: s.first_place,
 });
 
-export const buildPlayerCard = (player: PlayerRow, portfolios: PortfolioRow[], calculatedAt: Date): PlayerCard => {
+export interface ProgressionInput {
+  progress: LevelProgress;
+  active_title: TitleView | null;
+  achievements: { total: number; top: Award[] };
+}
+
+export const buildPlayerCard = (
+  player: PlayerRow,
+  portfolios: PortfolioRow[],
+  calculatedAt: Date,
+  progression: ProgressionInput | null = null
+): PlayerCard => {
   const summaries = portfolios.map(toSummary);
   const counts = portfolioCounts(summaries);
   return {
@@ -123,7 +139,9 @@ export const buildPlayerCard = (player: PlayerRow, portfolios: PortfolioRow[], c
       avatar_url: player.avatar_url,
       bio: player.bio,
     },
-    progression: { state: "unavailable", reason: "not_defined" },
+    progression: progression
+      ? { state: "available", value: { ...progression.progress, active_title: progression.active_title } }
+      : { state: "unavailable", reason: "missing_data" },
     social: { followers: 0, subscribers: 0 },
     stats: {
       portfolios_total: counts.total,
@@ -135,6 +153,6 @@ export const buildPlayerCard = (player: PlayerRow, portfolios: PortfolioRow[], c
     },
     competitions: competitionsOf(competitionStats([])),
     medals: { total: 0, top: [] },
-    achievements: { total: 0, top: [] },
+    achievements: progression?.achievements ?? { total: 0, top: [] },
   };
 };

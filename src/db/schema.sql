@@ -217,3 +217,155 @@ BEGIN
       CHECK ((status = 'closed') = (closed_at IS NOT NULL));
   END IF;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- XP, levels, player titles and game achievements
+-- (docs/PRODUCT-SPEC-AND-GAP.md, Parts 5 and 6)
+-- ---------------------------------------------------------------------------
+--
+-- Catalogs (titles, achievement categories, achievements) are seeded by
+-- migrate.js from src/progression/catalog.json. It inserts missing rows and
+-- never overwrites, so after the first deploy the database is the authority:
+-- an XP reward, a target or an enabled flag changed here takes effect without
+-- a code change. Ownership and selection are per player and separate from the
+-- catalog, which is never copied per player.
+
+-- XP needed to REACH each level. Level 1 needs nothing and has no row. The
+-- final thresholds are not decided, so this ships EMPTY: everyone is level 1
+-- until it is filled. A gap stops progression at the last configured level,
+-- so a partly filled table can never skip levels.
+CREATE TABLE IF NOT EXISTS level_thresholds (
+  level        INTEGER PRIMARY KEY CHECK (level BETWEEN 2 AND 100),
+  xp_required  INTEGER NOT NULL CHECK (xp_required > 0),
+  is_provisional BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Small switches the product decides, editable without a deploy. Known keys:
+--   backfill_history  true | false   count what existing players did before
+--                                    the XP system existed (default true)
+--   founding_period   {"start": ISO date | null, "end": ISO date | null}
+--                                    accounts created inside it are Founding
+--                                    Members; no end date means nobody is yet
+--   xp_system_started_at  ISO timestamp  set once, on the first migration;
+--                                    with backfill off, accounts older than
+--                                    this earn no XP for what they had done
+CREATE TABLE IF NOT EXISTS progression_settings (
+  key         TEXT PRIMARY KEY,
+  value       JSONB NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+INSERT INTO progression_settings (key, value) VALUES
+  ('backfill_history', 'true'),
+  ('founding_period', '{"start": null, "end": null}'),
+  ('xp_system_started_at', to_jsonb(NOW()))
+ON CONFLICT (key) DO NOTHING;
+
+-- Every title a player can hold. Level titles come in tiers of three, one per
+-- category, and unlock at level 5 * (tier - 1) + 1. Special and store titles
+-- (future) use the same table with required_level and tier left empty.
+CREATE TABLE IF NOT EXISTS titles (
+  id               TEXT PRIMARY KEY,
+  name             TEXT NOT NULL,
+  category         TEXT NOT NULL,
+  source_type      TEXT NOT NULL CHECK (source_type IN ('level', 'special', 'store')),
+  required_level   INTEGER CHECK (required_level BETWEEN 1 AND 100),
+  tier             INTEGER CHECK (tier BETWEEN 1 AND 20),
+  icon             TEXT NOT NULL,
+  accent_color     TEXT NOT NULL,
+  sort_order       INTEGER NOT NULL,
+  rarity           TEXT,
+  unlock_condition JSONB,
+  is_purchasable   BOOLEAN NOT NULL DEFAULT FALSE,
+  price_cents      INTEGER CHECK (price_cents >= 0),
+  is_enabled       BOOLEAN NOT NULL DEFAULT TRUE,
+  CHECK ((source_type = 'level') = (tier IS NOT NULL AND required_level IS NOT NULL))
+);
+
+-- Achievement categories and the achievements themselves.
+CREATE TABLE IF NOT EXISTS achievement_categories (
+  id           TEXT PRIMARY KEY,
+  name_en      TEXT NOT NULL,
+  name_he      TEXT NOT NULL,
+  icon         TEXT NOT NULL,
+  accent_color TEXT NOT NULL,
+  sort_order   INTEGER NOT NULL
+);
+
+-- condition_type names an evaluator in src/progression/evaluate.ts; the
+-- target and params are data, so a threshold can change without a deploy.
+CREATE TABLE IF NOT EXISTS achievements (
+  id                TEXT PRIMARY KEY,
+  category_id       TEXT NOT NULL REFERENCES achievement_categories(id),
+  title_en          TEXT NOT NULL,
+  title_he          TEXT NOT NULL,
+  description_en    TEXT NOT NULL,
+  description_he    TEXT NOT NULL,
+  condition_type    TEXT NOT NULL,
+  target_value      INTEGER,
+  condition_params  JSONB NOT NULL DEFAULT '{}',
+  prerequisite_ids  TEXT[] NOT NULL DEFAULT '{}',
+  xp_reward         INTEGER NOT NULL CHECK (xp_reward >= 0),
+  rarity            TEXT NOT NULL,
+  icon              TEXT,                 -- null: the category's icon
+  is_enabled        BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order        INTEGER NOT NULL
+);
+
+-- The XP ledger. Every grant from every source is one row, and the
+-- idempotency key is what makes a grant happen once: replaying an event
+-- inserts nothing. A player's total is the sum of their rows.
+CREATE TABLE IF NOT EXISTS xp_transactions (
+  id               SERIAL PRIMARY KEY,
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source_type      TEXT NOT NULL,         -- 'game_achievement' today; later 'professional_achievement', 'competition', 'daily_login', ...
+  source_id        TEXT NOT NULL,
+  xp_amount        INTEGER NOT NULL,
+  awarded_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  idempotency_key  TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_xp_transactions_user ON xp_transactions(user_id);
+
+-- Per-player progression: the cached total and level (both recomputed from
+-- the ledger and the thresholds on every sync), the active title, and when
+-- the player first chose one.
+CREATE TABLE IF NOT EXISTS player_progression (
+  user_id                  INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  total_xp                 INTEGER NOT NULL DEFAULT 0,
+  level                    INTEGER NOT NULL DEFAULT 1 CHECK (level BETWEEN 1 AND 100),
+  active_title_id          TEXT REFERENCES titles(id),
+  first_title_selected_at  TIMESTAMPTZ,
+  initialized_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Titles a player owns. Never deleted by choosing another title.
+CREATE TABLE IF NOT EXISTS player_titles (
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title_id     TEXT NOT NULL REFERENCES titles(id),
+  unlocked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  source       TEXT NOT NULL,             -- 'level' today; later 'special', 'store'
+  PRIMARY KEY (user_id, title_id)
+);
+
+-- One unlock ceremony per title tier reached. acknowledged_at is set when the
+-- player chooses a title or keeps their current one, so a ceremony is shown
+-- once and survives a refresh until then.
+CREATE TABLE IF NOT EXISTS title_ceremonies (
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tier             INTEGER NOT NULL CHECK (tier BETWEEN 1 AND 20),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  acknowledged_at  TIMESTAMPTZ,
+  PRIMARY KEY (user_id, tier)
+);
+
+-- Achievements a player has unlocked. notified_at is set once the player has
+-- seen the unlock notice, so it appears once and survives a refresh.
+CREATE TABLE IF NOT EXISTS player_achievements (
+  user_id                INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  achievement_id         TEXT NOT NULL REFERENCES achievements(id),
+  unlocked_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  xp_awarded             INTEGER NOT NULL,
+  reward_transaction_id  INTEGER REFERENCES xp_transactions(id) ON DELETE SET NULL,
+  notified_at            TIMESTAMPTZ,
+  PRIMARY KEY (user_id, achievement_id)
+);

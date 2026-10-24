@@ -95,6 +95,7 @@ Postgres without SSL, add `?sslmode=disable` to `DATABASE_URL`.
 | `MASSIVE_REQUESTS_PER_MINUTE` | Request budget per rolling minute (default 5, the free plan). |
 | `MASSIVE_MAX_WAIT_MS` | Longest a request waits for a free slot before failing, so a cached copy can be served instead (default 15000). |
 | `MASSIVE_INTRADAY` | `true` on a paid plan, to enable intraday bars. |
+| `PROGRESSION_SWEEP_HOURS` | How often every player is re-evaluated for achievements that fall due with time, such as portfolio age (default 6; `0` turns the sweep off). |
 
 ### Scripts
 
@@ -104,7 +105,7 @@ Postgres without SSL, add `?sslmode=disable` to `DATABASE_URL`.
 | `npm run build` | Compile to `dist/`. |
 | `npm start` | Run the compiled build. |
 | `npm test` | Type-check the tests, then run them with Vitest. |
-| `node src/db/migrate.js` | Apply `src/db/schema.sql`. Idempotent. |
+| `node src/db/migrate.js` | Apply `src/db/schema.sql` and seed the title and achievement catalogs from `src/progression/catalog.json` (new rows only). Idempotent. |
 | `node src/db/seedDemo.js` | Add demo accounts and portfolios; `--undo` removes them. |
 
 `src/db/resetForPortfolios.js` is a one-time, destructive migration that was
@@ -162,6 +163,17 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 |---|---|---|
 | GET | `/players/me/card` | Your Player Card. Every figure is calculated on the server; figures without data or rules yet come back as locked or unavailable, with the reason. |
 | PATCH | `/players/me` | Change your bio (at most 100 characters) and first name (at most 50). The nickname and picture cannot be changed yet. |
+| GET | `/players/me/titles` | Your title collection: every level title, marked unlocked or locked, and the active one. |
+| PUT | `/players/me/title` | Make an unlocked title the active one. A locked title is refused (403 `TITLE_NOT_OWNED`). |
+| GET | `/players/me/achievements` | All game achievements with your state and progress for each, and per-category counts. |
+| GET | `/players/me/progression/notifications` | Unlock notices you have not seen, and the pending title ceremony if a new tier was reached. |
+| POST | `/players/me/progression/acknowledge` | Mark notices as seen and close the ceremony, so neither returns after a refresh. |
+
+XP, levels, titles and achievements live in `src/progression`. XP per level is
+not decided yet: the `level_thresholds` table ships empty, so every player is
+level 1 until it is filled. XP rewards, targets and switches
+(`progression_settings`) are database rows, changeable without a deploy. See
+Part 5 of `docs/PRODUCT-SPEC-AND-GAP.md`.
 
 ### Market data — `/stocks`
 
@@ -187,6 +199,7 @@ src/
   middleware/       authentication, rate limits, error handling
   services/         Massive client, market clock
   metrics/          the metric engine and its tests
+  progression/      XP ledger, levels, titles, game achievements, catalog
   db/               schema.sql, migration, seed and reset scripts
 docs/               product spec and gap analysis
 ```

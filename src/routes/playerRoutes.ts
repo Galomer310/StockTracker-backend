@@ -1,5 +1,12 @@
 import express from "express";                 // Import express
 import { getMyPlayerCard, updateMyProfile } from "../controllers/playerController";
+import {
+  acknowledgeMyNotifications,
+  getMyAchievements,
+  getMyNotifications,
+  getMyTitles,
+  setMyTitle,
+} from "../controllers/progressionController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { socialLimiter } from "../middleware/rateLimiter";       // Per-user limit
 
@@ -15,5 +22,16 @@ router.get("/me/card", getMyPlayerCard);
 
 // PATCH /players/me - change your own bio and first name
 router.patch("/me", updateMyProfile);
+
+// Player titles: the collection, and choosing the active one
+router.get("/me/titles", getMyTitles);
+router.put("/me/title", setMyTitle);
+
+// Game achievements: the collection with each one's state and progress
+router.get("/me/achievements", getMyAchievements);
+
+// Unseen unlock notices and the pending title ceremony, and marking them seen
+router.get("/me/progression/notifications", getMyNotifications);
+router.post("/me/progression/acknowledge", acknowledgeMyNotifications);
 
 export default router;                         // Export the router
