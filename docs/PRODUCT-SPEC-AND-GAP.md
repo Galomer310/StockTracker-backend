@@ -2154,3 +2154,13 @@ initial). `PATCH /players/me` accepts `avatar_id`, one of `AVATAR_IDS` in
 can grow without a migration; ids are never renamed or removed once
 offered. The player picks one in the Player Card's edit mode. Uploads
 (`avatar_url`) and special platform images are still not built.
+
+Second round, same day, 26 in all: astronaut, student, princess, king,
+space-warrior, groot, darth-vader, jedi, captain-america, kim-jong-un,
+genghis-khan, samurai, mario, harry-potter, hermione, r2-d2, bb-8, hagrid,
+gandalf, einstein, tesla. Flagged to Gal before adding, and added at his
+decision: eleven are characters owned by Disney/Marvel, Lucasfilm,
+Nintendo, Warner Bros. or the Tolkien estate, Einstein's name and likeness
+are licensed by the Hebrew University of Jerusalem, and Kim Jong Un is a
+living head of state. A paid product may need licences for these, or to
+replace them with original look-alikes.

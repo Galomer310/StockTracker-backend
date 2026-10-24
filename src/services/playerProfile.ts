@@ -29,7 +29,34 @@ export const FIRST_NAME_MAX_LENGTH = 50;
 // The avatar gallery. Ids only: each must have artwork in the frontend
 // (src/components/avatars). Add new ones at the end; never rename or remove
 // one a player may have chosen.
-export const AVATAR_IDS = ["businessperson", "warrior", "entrepreneur", "investor", "freelancer"] as const;
+export const AVATAR_IDS = [
+  "businessperson",
+  "warrior",
+  "entrepreneur",
+  "investor",
+  "freelancer",
+  "astronaut",
+  "student",
+  "princess",
+  "king",
+  "space-warrior",
+  "groot",
+  "darth-vader",
+  "jedi",
+  "captain-america",
+  "kim-jong-un",
+  "genghis-khan",
+  "samurai",
+  "mario",
+  "harry-potter",
+  "hermione",
+  "r2-d2",
+  "bb-8",
+  "hagrid",
+  "gandalf",
+  "einstein",
+  "tesla",
+] as const;
 export type AvatarId = (typeof AVATAR_IDS)[number];
 
 export type ProfileErrorCode =
