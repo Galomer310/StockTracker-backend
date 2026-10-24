@@ -15,6 +15,7 @@ import {
   validateEmail,
   normaliseEmail,
 } from "../utils/credentials";
+import { syncProgressionSafely } from "../progression/service";
 
 /* Work factor for bcrypt.
    Raised from 10. The cost is stored inside each hash, so existing passwords
@@ -80,6 +81,9 @@ export const register = async (
       "INSERT INTO users (email, password, display_name) VALUES ($1, $2, $3) RETURNING id",
       [address, hashedPassword, name]
     );
+
+    // Starts progression: Welcome to the Market, and the first title tier.
+    await syncProgressionSafely(newUser.rows[0].id);
 
     const accessToken = generateAccessToken(newUser.rows[0].id);
     return res.status(201).json({ message: "User registered", accessToken });
@@ -150,6 +154,9 @@ export const login = async (
           console.error("[auth] password rehash failed for user", user.id, err)
         );
     }
+
+    // Catches up anything that became due while the player was away.
+    await syncProgressionSafely(user.id);
 
     const accessToken = generateAccessToken(user.id);
     const refreshToken = generateRefreshToken(user.id);

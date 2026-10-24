@@ -2010,3 +2010,106 @@ no longer blocked: the reference image arrived and the language is decided.
   after seeing today's move. Upgrading the plan closes that gap; the code
   needs only `MASSIVE_REQUESTS_PER_MINUTE` and `MASSIVE_INTRADAY` changed, plus
   a snapshot-based quote.
+
+---
+
+# PART 5 — PLAYER TITLES, GAME ACHIEVEMENTS AND XP (2026-10-24)
+
+Two specs supplied in chat on 2026-10-24: **"Luxury Player Title System"** and
+**"BEAT THE MARKET — Game Achievements & XP Progression System, v1.2"**, with a
+reference image of the title screen. Their data is reproduced exactly in
+`src/progression/catalog.json`, and `src/progression/catalog.test.ts` checks it
+against the approved tables: 60 titles (20 tiers × Professional Path, Market
+Legends, Capital Empire) and 62 game achievements in 7 categories, with both
+languages, conditions and XP.
+
+## What exists
+
+- **XP ledger** (`xp_transactions`). Every grant from any source is one row
+  with a unique idempotency key, so a replayed event grants nothing. A
+  player's total is the sum of the rows. Sources supported: game
+  achievements now; professional achievements, competitions and daily login
+  write to the same ledger later (`awardXp`).
+- **Levels 1–100** from `level_thresholds` (XP needed to reach each level).
+  The thresholds are not decided, so the table **ships empty**: everyone is
+  level 1 and the card says thresholds are not set, with no invented target.
+  A gap stops progression at the last configured level. Rows carry an
+  `is_provisional` flag, shown on the card while any is set.
+- **Titles.** All three titles of a tier unlock together on the tier's first
+  level (1, 6, 11 … 96) and are never removed. One active title; only owned,
+  enabled titles can be activated, checked on the server. Special and store
+  titles fit the same table (`source_type`, `rarity`, `unlock_condition`,
+  `is_purchasable`, `price_cents`); none exist yet.
+- **Unlock ceremony.** One per tier reached (`title_ceremonies`), shown until
+  the player chooses a title or keeps the current one. A jump across several
+  tiers grants every title and shows one ceremony with the highest tier's
+  three; acknowledging it closes all pending ones.
+- **Game achievements.** Evaluated by condition type (`evaluate.ts`) against
+  the player's facts; one sync can unlock several, and achievement-count
+  milestones resolve in repeated passes without looping. Unlocked
+  achievements are permanent even if a count later falls. Each awards XP
+  once; notices are shown once (`notified_at`).
+- **When evaluation runs:** account creation, sign-in, portfolio creation,
+  profile edit, title choice, every Player Card / collection / notification
+  read, and a sweep of all players every `PROGRESSION_SWEEP_HOURS` (default 6)
+  for time-based achievements.
+- **Configurable without a deploy:** XP reward, target, params, enabled flag
+  (table `achievements`); thresholds; `progression_settings`
+  (`backfill_history`, `founding_period`, `xp_system_started_at`).
+  `migrate.js` inserts catalog rows that are missing and never overwrites, so
+  database edits survive redeploys.
+
+## Decided (Gal, 2026-10-24)
+
+- Thresholds: **empty until set**. No provisional curve on production.
+- Existing players: **history counts** (`backfill_history = true`). The
+  switch exists: with it off, an account older than `xp_system_started_at`
+  has its past recorded as unlocked with 0 XP and no notice.
+- Founding Member: **everyone who joined by a date** — the end date has not
+  been given yet. Until `founding_period.end` is set nobody qualifies. Set it
+  with: `UPDATE progression_settings SET value = '{"start": null, "end": "YYYY-MM-DD"}' WHERE key = 'founding_period';`
+  (inclusive end date).
+
+## Decided while building (flag if wrong)
+
+- **The Introduction** = first name and bio both filled in: the parts of the
+  profile a player can edit today.
+- **Portfolio age** counts until today, or until the day a portfolio closed.
+  No trading is required.
+- **Rarity** follows the XP tiers (25 basic, 50 advanced, 100 rare, 150 epic);
+  The Powerhouse and The Market Mogul are "exceptional".
+- **Ready, Set, Invest!** shows the dependencies of its unmet prerequisites
+  (usernames, follows), so it never looks reachable when it is not.
+- Title names and title category names stay **English in both languages**, as
+  the reference image shows them; the category taglines are translated.
+  Hebrew calls a title **כינוי** (as in the image), so the card's "no
+  nickname" text now says **שם משתמש** to avoid two meanings of כינוי.
+- The Player Card's existing black-and-gold styling is kept; the new title,
+  ceremony and collection pieces use the specs' navy palette.
+
+## Blocked by systems that do not exist yet
+
+Today 15 of the 62 can be earned (14 until the Founding Member date is set).
+41 wait for a system that does not exist yet; they are in the catalog and in
+the collection, marked with what they wait for:
+
+| Waits for | Achievements |
+|---|---|
+| Choosing a username | Make Your Mark (and so Ready, Set, Invest!) |
+| Following | First Connection, Exploration follow milestones (5), Community follower milestones (8) |
+| Subscriptions and payments | Golden Ticket, The Private List, Members Only, From Fan to Insider, paying-subscriber milestones (8), Inner Circle Regular, The Annual Pass, Both Sides of the Market |
+| Competitions | The Arena (9), The Full Experience |
+
+The evaluators are written and tested with sample facts; when a system ships,
+its loader fills the fact in `loadFacts` (service.ts) and those achievements
+start working. Also unreachable today: High Five, The Portfolio Vault, The
+Portfolio Baron and The Portfolio Empire (above the 3-portfolio limit), and
+Hall of Fame (30 achievements) and The Grand Tour (all six other categories),
+which need achievements from the blocked systems.
+
+## Still open
+
+- The XP needed for each level (fill `level_thresholds`).
+- The Founding Member end date.
+- XP values beyond the proposed ones; Daily Login amounts; professional
+  achievements and medals; competition rewards.

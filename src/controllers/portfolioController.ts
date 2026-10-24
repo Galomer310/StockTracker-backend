@@ -5,6 +5,7 @@ import {
   portfolioLimitFor,
   MAX_PORTFOLIO_NAME_LENGTH,
 } from "../config/portfolio";
+import { syncProgressionSafely } from "../progression/service"; // Achievements and XP
 
 /* ===========================================================================
    Portfolios.
@@ -154,6 +155,8 @@ export const createPortfolio: RequestHandler = async (req, res, next) => {
     );
 
     await client.query("COMMIT");
+
+    await syncProgressionSafely(userId); // portfolio-count achievements
 
     res.status(201).json({
       portfolio: valuePortfolio({

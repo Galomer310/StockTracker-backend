@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPlayerCard, PlayerRow, PortfolioRow } from "./playerCard";
+import { progressFor } from "../progression/levels";
 
 const player: PlayerRow = { nickname: null, first_name: null, avatar_url: null, bio: "" };
 const at = new Date("2026-10-16T12:00:00Z");
@@ -43,10 +44,21 @@ describe("buildPlayerCard", () => {
     expect(card.stats.average_active_return).toEqual({ state: "available", value: expect.closeTo(0.15, 12) });
   });
 
-  it("withholds what has no data or no rules yet, instead of inventing it", () => {
+  it("withholds what has no data, instead of inventing it", () => {
     const card = buildPlayerCard(player, [pf(10), pf(20)], at);
     expect(card.stats.average_month_to_date_return).toEqual({ state: "unavailable", reason: "missing_data" });
-    expect(card.progression).toEqual({ state: "unavailable", reason: "not_defined" });
+    expect(card.progression).toEqual({ state: "unavailable", reason: "missing_data" });
+  });
+
+  it("shows progression and game achievements when they are loaded", () => {
+    const progress = progressFor(120, []);
+    const active_title = {
+      id: "chart_rookie", name: "Chart Rookie", category: "market_legends", source_type: "level" as const,
+      required_level: 1, tier: 1, icon: "flame", accent_color: "#DAA17F", sort_order: 11, rarity: null,
+    };
+    const card = buildPlayerCard(player, [], at, { progress, active_title, achievements: { total: 3, top: [] } });
+    expect(card.progression).toEqual({ state: "available", value: { ...progress, active_title } });
+    expect(card.achievements).toEqual({ total: 3, top: [] });
   });
 
   it("reports systems that do not exist yet as zero, since nobody has any", () => {
@@ -54,7 +66,6 @@ describe("buildPlayerCard", () => {
     expect(card.social).toEqual({ followers: 0, subscribers: 0 });
     expect(card.competitions).toEqual({ participations: 0, prize_wins: 0, top_3: 0, first_place: 0 });
     expect(card.medals).toEqual({ total: 0, top: [] });
-    expect(card.achievements).toEqual({ total: 0, top: [] });
   });
 
   it("handles a player with no portfolios", () => {

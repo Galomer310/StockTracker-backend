@@ -11,6 +11,7 @@ import portfolioRoutes from "./routes/portfolioRoutes"; // Import the user's own
 import playerRoutes from "./routes/playerRoutes"; // Import the Player Card routes
 import { corsOptions, getAllowedOrigins } from "./config/cors"; // Origin allowlist + exposed headers
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler"; // JSON errors
+import { sweepAll } from "./progression/service"; // Time-based achievements
 
 dotenv.config();                               // Load environment variables from .env file
 
@@ -119,3 +120,16 @@ app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`); // Log a message indicating the server is running
   console.log(`CORS origins allowed: ${getAllowedOrigins().join(", ")}`);
 });
+
+// Achievements that fall due with time (a portfolio turning 30 days old) are
+// granted on the player's next sign-in or card visit, and also by this sweep,
+// so they do not depend on the player showing up. It runs a minute after boot
+// and then every PROGRESSION_SWEEP_HOURS (default 6; 0 turns it off). Grants
+// are idempotent, so overlapping with a player's own sync is harmless.
+const SWEEP_HOURS = Number(process.env.PROGRESSION_SWEEP_HOURS ?? 6);
+if (SWEEP_HOURS > 0) {
+  const sweep = () =>
+    sweepAll().catch((error) => console.error("[progression] sweep failed:", error));
+  setTimeout(sweep, 60_000).unref();
+  setInterval(sweep, SWEEP_HOURS * 60 * 60 * 1000).unref();
+}
