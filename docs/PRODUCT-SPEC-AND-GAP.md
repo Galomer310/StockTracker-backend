@@ -2061,7 +2061,18 @@ languages, conditions and XP.
 
 ## Decided (Gal, 2026-10-24)
 
-- Thresholds: **empty until set**. No provisional curve on production.
+- Thresholds: **option B, "balanced"** (decided 2026-10-24): XP to reach
+  level L = 25 × (L − 1)², so level 6 at 625 XP, level 11 at 2,500, level 51
+  at 62,500 and level 100 at 245,025. Chosen over 15× (new titles on day one)
+  and 40× (second titles after about a year). All 62 game achievements
+  (5,300 XP) reach level 15; levels beyond that are left to professional
+  achievements, competitions and daily login, whose XP rates should be set
+  against this curve. Easing the curve later moves nobody down a level;
+  tightening it would. It is data, set on production directly and marked
+  provisional:
+  `INSERT INTO level_thresholds (level, xp_required, is_provisional) SELECT l, 25 * (l - 1) * (l - 1), true FROM generate_series(2, 100) AS l;`
+  The schema still ships the table empty, so a fresh database has no curve
+  until this is run.
 - Existing players: **history counts** (`backfill_history = true`). The
   switch exists: with it off, an account older than `xp_system_started_at`
   has its past recorded as unlocked with 0 XP and no notice.
@@ -2110,7 +2121,7 @@ which need achievements from the blocked systems.
 
 ## Still open
 
-- The XP needed for each level (fill `level_thresholds`).
+- When the curve stops being provisional (`UPDATE level_thresholds SET is_provisional = false;`).
 - XP values beyond the proposed ones; Daily Login amounts; professional
   achievements and medals; competition rewards.
 
