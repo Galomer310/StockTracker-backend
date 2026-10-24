@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateProfileUpdate } from "./playerProfile";
+import { AVATAR_IDS, validateProfileUpdate } from "./playerProfile";
 
 describe("validateProfileUpdate", () => {
   it("accepts a bio and a first name, trimmed", () => {
@@ -55,6 +55,14 @@ describe("validateProfileUpdate", () => {
       ok: true,
       update: { bio: "Hi", avatar_id: "investor" },
     });
+  });
+
+  it("accepts every gallery avatar; ids are unique and URL-safe", () => {
+    expect(new Set(AVATAR_IDS).size).toBe(AVATAR_IDS.length);
+    for (const avatar_id of AVATAR_IDS) {
+      expect(avatar_id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+      expect(validateProfileUpdate({ avatar_id }).ok).toBe(true);
+    }
   });
 
   it("refuses an avatar outside the gallery", () => {
