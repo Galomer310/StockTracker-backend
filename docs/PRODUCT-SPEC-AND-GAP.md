@@ -2091,14 +2091,13 @@ languages, conditions and XP.
 
 ## Blocked by systems that do not exist yet
 
-Today 15 of the 62 can be earned.
-41 wait for a system that does not exist yet; they are in the catalog and in
+Today 29 of the 62 can be earned (15 before following existed), worth at
+most 1,750 XP in all. 27 wait for a system that does not exist yet; they are in the catalog and in
 the collection, marked with what they wait for:
 
 | Waits for | Achievements |
 |---|---|
 | Choosing a username | Make Your Mark (and so Ready, Set, Invest!) |
-| Following | First Connection, Exploration follow milestones (5), Community follower milestones (8) |
 | Subscriptions and payments | Golden Ticket, The Private List, Members Only, From Fan to Insider, paying-subscriber milestones (8), Inner Circle Regular, The Annual Pass, Both Sides of the Market |
 | Competitions | The Arena (9), The Full Experience |
 
@@ -2114,3 +2113,17 @@ which need achievements from the blocked systems.
 - The XP needed for each level (fill `level_thresholds`).
 - XP values beyond the proposed ones; Daily Login amounts; professional
   achievements and medals; competition rewards.
+
+## Following (2026-10-24)
+
+Built after Part 5, with Gal's two decisions: **one click, no approval**, and
+**counts public, lists only to the player**. Table `follows` (one row per
+pair, no self-follow). Endpoints: `GET/PUT/DELETE /players/:id/follow` and
+`GET /players/me/followers`, `GET /players/me/following`. A follow syncs both
+players' progression, so First Connection, the five follow milestones, The
+First Fan and the seven follower milestones now unlock; achievements stay when
+someone unfollows, and following again grants nothing new. The Player Card's
+follower count is real. The Follow button is on another player's portfolio
+page; the lists open from the Followers figure on your own card. From Fan to
+Insider now waits only for subscriptions, and Ready, Set, Invest! only for
+usernames.

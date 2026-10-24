@@ -78,12 +78,18 @@ const loadDefs = async (client: PoolClient): Promise<AchievementDef[]> =>
     )
   ).rows;
 
-// What is known about the player. Systems that do not exist yet (follows,
-// subscriptions, competitions) are left out, which evaluate.ts reports as
+// What is known about the player. Systems that do not exist yet
+// (subscriptions, competitions) are left out, which evaluate.ts reports as
 // blocked; their loaders belong here once those tables exist.
 const loadFacts = async (client: PoolClient, userId: number, titleSelected: boolean): Promise<PlayerFacts | null> => {
   const user = await client.query("SELECT created_at, nickname, first_name, bio FROM users WHERE id = $1", [userId]);
   const portfolios = await client.query("SELECT created_at, closed_at FROM portfolios WHERE user_id = $1", [userId]);
+  // Counted at the player level, never per portfolio.
+  const follows = await client.query(
+    `SELECT (SELECT COUNT(*)::int FROM follows WHERE follower_id = $1) AS following,
+            (SELECT COUNT(*)::int FROM follows WHERE followee_id = $1) AS followers`,
+    [userId]
+  );
   if (user.rows.length === 0) return null;
   const u = user.rows[0];
   return {
@@ -96,6 +102,8 @@ const loadFacts = async (client: PoolClient, userId: number, titleSelected: bool
       closed_at: p.closed_at ? new Date(p.closed_at) : null,
     })),
     title_selected: titleSelected,
+    following: follows.rows[0].following,
+    followers: follows.rows[0].followers,
   };
 };
 

@@ -23,8 +23,9 @@
      with no thresholds configured every player is level 1 and the progress
      figures say so (thresholds_configured) rather than invent a target. If
      progression could not be loaded, it is unavailable as missing_data.
-   - Followers, subscribers, medals and competitions are zero, which is
-     true: none of those systems exists yet, so nobody has any.
+   - Followers are real (table follows). Subscribers, medals and
+     competitions are zero, which is true: none of those systems exists yet,
+     so nobody has any.
    =========================================================================== */
 
 import {
@@ -126,7 +127,8 @@ export const buildPlayerCard = (
   player: PlayerRow,
   portfolios: PortfolioRow[],
   calculatedAt: Date,
-  progression: ProgressionInput | null = null
+  progression: ProgressionInput | null = null,
+  followers = 0
 ): PlayerCard => {
   const summaries = portfolios.map(toSummary);
   const counts = portfolioCounts(summaries);
@@ -142,7 +144,7 @@ export const buildPlayerCard = (
     progression: progression
       ? { state: "available", value: { ...progression.progress, active_title: progression.active_title } }
       : { state: "unavailable", reason: "missing_data" },
-    social: { followers: 0, subscribers: 0 },
+    social: { followers, subscribers: 0 },
     stats: {
       portfolios_total: counts.total,
       portfolios_active: counts.active,

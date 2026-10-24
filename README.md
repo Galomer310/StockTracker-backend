@@ -168,6 +168,9 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | GET | `/players/me/achievements` | All game achievements with your state and progress for each, and per-category counts. |
 | GET | `/players/me/progression/notifications` | Unlock notices you have not seen, and the pending title ceremony if a new tier was reached. |
 | POST | `/players/me/progression/acknowledge` | Mark notices as seen and close the ceremony, so neither returns after a refresh. |
+| GET | `/players/:id/follow` | Whether you follow that player, and their public follower count. |
+| PUT / DELETE | `/players/:id/follow` | Follow or unfollow. One click, no approval; both are idempotent. You cannot follow yourself. |
+| GET | `/players/me/followers`, `/players/me/following` | Your own lists. Nobody else's lists can be read. |
 
 XP, levels, titles and achievements live in `src/progression`. XP per level is
 not decided yet: the `level_thresholds` table ships empty, so every player is

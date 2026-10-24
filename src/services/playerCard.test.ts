@@ -61,6 +61,10 @@ describe("buildPlayerCard", () => {
     expect(card.achievements).toEqual({ total: 3, top: [] });
   });
 
+  it("passes the follower count through", () => {
+    expect(buildPlayerCard(player, [], at, null, 12).social).toEqual({ followers: 12, subscribers: 0 });
+  });
+
   it("reports systems that do not exist yet as zero, since nobody has any", () => {
     const card = buildPlayerCard(player, [], at);
     expect(card.social).toEqual({ followers: 0, subscribers: 0 });
