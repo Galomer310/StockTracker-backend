@@ -2164,3 +2164,11 @@ Nintendo, Warner Bros. or the Tolkien estate, Einstein's name and likeness
 are licensed by the Hebrew University of Jerusalem, and Kim Jong Un is a
 living head of state. A paid product may need licences for these, or to
 replace them with original look-alikes.
+
+Shown in lists (2026-11-09): every response that names another player now
+carries their `avatar_id` next to `display_name` - feed posts and replies
+(`GET /feed`, `POST /feed/:id/comments`), the leaderboard and the portfolio
+page (`GET /social/leaderboard`, `/social/portfolios/:id` and its journal),
+and the follow lists (`GET /players/me/followers|following`). The avatar
+is public, like the name. Null means the player has not chosen one, and
+the client shows the initial instead.
