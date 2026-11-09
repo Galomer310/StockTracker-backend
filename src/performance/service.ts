@@ -1,6 +1,7 @@
 import pool from "../config/db";
 import { localDate } from "../metrics/calendar";
 import { fetchUnadjustedCloses } from "../services/massive";
+import { computeInsights } from "./insights";
 import { addDays, checkAgainstLive, finalThrough, lastFinalSession, performanceIndexOf, PricePoint, reconstructDailyValues } from "./history";
 
 /* ===========================================================================
@@ -42,6 +43,23 @@ const HISTORY_DAYS = 729;
 export const loadBenchmark = async (): Promise<BenchmarkSetting> => {
   const r = await pool.query("SELECT value FROM progression_settings WHERE key = 'benchmark'");
   return { ...DEFAULT_BENCHMARK, ...(r.rows[0]?.value ?? {}) };
+};
+
+const DEFAULT_NASDAQ100: BenchmarkSetting = {
+  symbol: "QQQ",
+  name: "NASDAQ-100",
+  source: "etf_proxy",
+  return_type: "price",
+  provisional: true,
+};
+
+/** Every benchmark Performance Insights compares with, in display order. */
+export const loadBenchmarks = async (): Promise<(BenchmarkSetting & { key: string })[]> => {
+  const r = await pool.query("SELECT value FROM progression_settings WHERE key = 'benchmark_nasdaq100'");
+  return [
+    { key: "sp500", ...(await loadBenchmark()) },
+    { key: "nasdaq100", ...DEFAULT_NASDAQ100, ...(r.rows[0]?.value ?? {}) },
+  ];
 };
 
 // A DATE column as "YYYY-MM-DD" (node-postgres reads DATE as local midnight).
@@ -213,9 +231,9 @@ export const runValuationJob = async (now: Date = new Date()) => {
   if (running) return null;
   running = true;
   try {
-    const benchmark = await loadBenchmark();
+    const marks = [...new Set((await loadBenchmarks()).map((b) => b.symbol))];
     const traded = await pool.query("SELECT DISTINCT stock_symbol FROM trade_notes ORDER BY stock_symbol");
-    const symbols = [benchmark.symbol, ...traded.rows.map((r) => r.stock_symbol).filter((s) => s !== benchmark.symbol)];
+    const symbols = [...marks, ...traded.rows.map((r) => r.stock_symbol).filter((s) => !marks.includes(s))];
     const prices = await ensureCloses(symbols, now);
     const portfolios = await pool.query("SELECT id FROM portfolios ORDER BY id");
     const rebuilt = [];
@@ -265,5 +283,51 @@ export const portfolioHistory = async (portfolioId: number, userId: number) => {
       perf_index: r.perf_index === null ? null : Number(r.perf_index),
       estimated: r.estimated,
     })),
+  };
+};
+
+/**
+ * Module 5, Performance Insights, for the owner: worked out on request from
+ * the stored history and closes (src/performance/insights.ts). Null when the
+ * portfolio is not the caller's.
+ */
+export const portfolioInsights = async (portfolioId: number, userId: number, now: Date = new Date()) => {
+  const p = (
+    await pool.query("SELECT id, name, created_at FROM portfolios WHERE id = $1 AND user_id = $2", [portfolioId, userId])
+  ).rows[0];
+  if (!p) return null;
+  const benchmarks = await loadBenchmarks();
+  const [status, rows, closes] = await Promise.all([
+    pool.query("SELECT consistent, final_through, rebuilt_at FROM portfolio_history_status WHERE portfolio_id = $1", [portfolioId]),
+    pool.query("SELECT date, perf_index, estimated FROM portfolio_daily_values WHERE portfolio_id = $1 ORDER BY date", [portfolioId]),
+    loadCloses(benchmarks.map((b) => b.symbol)),
+  ]);
+  const s = status.rows[0];
+  const outcome = computeInsights({
+    openedOn: localDate(new Date(p.created_at)),
+    today: localDate(now),
+    days: rows.rows.map((r) => ({
+      date: dateText(r.date),
+      perf_index: r.perf_index === null ? null : Number(r.perf_index),
+      estimated: r.estimated,
+    })),
+    benchmarks: benchmarks.map((b) => ({ key: b.key, symbol: b.symbol, name: b.name, closes: closes[b.symbol] ?? [] })),
+  });
+  return {
+    portfolio: { id: p.id, name: p.name, created_at: p.created_at },
+    status: s
+      ? { consistent: s.consistent, final_through: s.final_through ? dateText(s.final_through) : null, rebuilt_at: s.rebuilt_at }
+      : null,
+    benchmarks: benchmarks.map((b) => ({
+      key: b.key,
+      symbol: b.symbol,
+      name: b.name,
+      source: b.source,
+      return_type: b.return_type,
+      provisional: b.provisional,
+    })),
+    ...(outcome.ok
+      ? { available: true as const, insights: outcome.insights }
+      : { available: false as const, reason: outcome.reason, age_days: outcome.age_days }),
   };
 };

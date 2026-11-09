@@ -534,6 +534,13 @@ INSERT INTO progression_settings (key, value) VALUES
   ('benchmark', '{"symbol": "SPY", "name": "S&P 500", "source": "etf_proxy", "return_type": "price", "provisional": true}')
 ON CONFLICT (key) DO NOTHING;
 
+-- The second benchmark Performance Insights always shows (spec Part 1,
+-- Module 5). Like the S&P 500, a fund stands in for the index on the current
+-- plan: QQQ for the NASDAQ-100, price return, provisional.
+INSERT INTO progression_settings (key, value) VALUES
+  ('benchmark_nasdaq100', '{"symbol": "QQQ", "name": "NASDAQ-100", "source": "etf_proxy", "return_type": "price", "provisional": true}')
+ON CONFLICT (key) DO NOTHING;
+
 -- Daily closes, kept for good rather than in memory. Unadjusted for splits,
 -- like the holdings they value. One row per symbol per US trading date.
 CREATE TABLE IF NOT EXISTS daily_prices (
