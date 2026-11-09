@@ -2,7 +2,7 @@ import express from "express";                 // Import express
 import { listPortfolios, createPortfolio } from "../controllers/portfolioController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { watchlistLimiter } from "../middleware/rateLimiter";    // Per-user limit
-import { ComparisonError, portfolioHistory, portfolioIndexComparison, portfolioInsights, portfolioProfile } from "../performance/service"; // Rebuilt daily values, Modules 3 and 5, index comparison
+import { ComparisonError, portfolioExposures, portfolioHistory, portfolioIndexComparison, portfolioInsights, portfolioProfile } from "../performance/service"; // Rebuilt daily values, Modules 3 and 5, index comparison
 import { getAllocation, getComposition } from "../controllers/portfolioDashboardController";
 
 const router = express.Router();               // Create a new router instance
@@ -108,6 +108,27 @@ router.get("/:id/compare-index", async (req, res, next) => {
       res.status(400).json({ error: "This comparison is not valid.", code: error.code });
       return;
     }
+    next(error);
+  }
+});
+
+// GET /portfolios/:id/exposures - Module 4, Exposure & Characteristics:
+// micro and small cap, low volume, tech and momentum, as shares of the
+// whole portfolio, with what could not be classified. Owner only.
+router.get("/:id/exposures", async (req, res, next) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid portfolio id" });
+    return;
+  }
+  try {
+    const result = await portfolioExposures(id, (req as any).user.id);
+    if (!result) {
+      res.status(404).json({ error: "Portfolio not found" });
+      return;
+    }
+    res.json(result);
+  } catch (error) {
     next(error);
   }
 });

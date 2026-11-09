@@ -2610,3 +2610,28 @@ stand-in).
 SPY, Nasdaq Composite = ONEQ, Dow Jones = DIA, Russell 2000 = IWM. The
 valuation job keeps their closes: the first run fetches two years for each
 new fund (one request each), then one request a day each.
+
+## Module 4: Exposure & Characteristics, and the security master (2026-11-09)
+
+`GET /portfolios/:id/exposures` (owner only), `src/performance/exposures.ts`
+(pure). Shares of the whole portfolio, cash included (as Module 1); a
+holding that cannot be classified for lack of data is reported apart as
+"not classified", never as "no".
+
+- **Security master** (`securities`): name, SIC code and description, market
+  cap, from the market data's company reference (on the current plan),
+  refreshed weekly by the valuation job for held symbols (one request each).
+- **Micro / Small Cap:** < $100M / $100M up to $1B (never both).
+- **Low Volume:** 20-day average price x 20-day average volume < $5M (the
+  spec's formula; the Investment Profile's liquidity now uses it too, so a
+  holding needs 20 sessions of volume to be judged).
+- **Tech:** the controlled table `tech_classification` - SIC ranges
+  (computers 3570-3579, communications equipment 3661-3669, electronic
+  components and semiconductors 3670-3679, e-commerce 5961, software and
+  internet 7370-7379) plus symbol exceptions (NFLX, PYPL, V, MA, XYZ, COIN,
+  HOOD, AFRM, SOFI). Seeded once; edits stay. **My choice of ranges and
+  exceptions - for Gal to review.**
+- **Momentum:** price above the 50- and 200-day averages and the 50 above
+  the 200; needs 200 closes.
+- **Dividend and Profitability:** shown as "not available yet" - the spec
+  does not define them and the plan has no fundamentals.

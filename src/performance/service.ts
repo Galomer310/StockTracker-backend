@@ -1,6 +1,8 @@
 import pool from "../config/db";
 import { localDate } from "../metrics/calendar";
-import { fetchUnadjustedCloses } from "../services/massive";
+import { fetchOverview, fetchUnadjustedCloses } from "../services/massive";
+import { computeExposures, TechRule } from "./exposures";
+import { averageDailyDollarVolume } from "../metrics/exposure";
 import { compositionEvents } from "./composition";
 import { compareWithIndex, computeInsights, sessionPoints } from "./insights";
 import { computeProfile, DEFAULT_SCALES, ProfileScales } from "./profile";
@@ -167,19 +169,64 @@ export const ensureVolumes = async (symbols: string[], now: Date = new Date()) =
   return report;
 };
 
-/** Average daily dollar volume (close x volume) over the last 20 sessions with volume. */
+/**
+ * Average daily dollar volume as the spec defines it: the 20-day average
+ * price times the 20-day average share volume (metrics/exposure). Null with
+ * fewer than 20 sessions of volume.
+ */
 const loadDollarVolumes = async (symbols: string[]): Promise<Record<string, number | null>> => {
   const out: Record<string, number | null> = Object.fromEntries(symbols.map((s) => [s, null]));
   if (symbols.length === 0) return out;
   const r = await pool.query(
-    `SELECT symbol, AVG(close * volume) AS dv FROM (
-       SELECT symbol, close, volume, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+    `SELECT symbol, close, volume FROM (
+       SELECT symbol, date, close, volume, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
        FROM daily_prices WHERE symbol = ANY($1::text[]) AND volume IS NOT NULL
-     ) x WHERE rn <= $2 GROUP BY symbol`,
+     ) x WHERE rn <= $2 ORDER BY symbol, date`,
     [symbols, VOLUME_SESSIONS]
   );
-  for (const row of r.rows) out[row.symbol] = row.dv === null ? null : Number(row.dv);
+  const bars = new Map<string, { close: number; volume: number }[]>();
+  for (const row of r.rows) bars.set(row.symbol, [...(bars.get(row.symbol) ?? []), { close: Number(row.close), volume: Number(row.volume) }]);
+  for (const [symbol, b] of bars) out[symbol] = averageDailyDollarVolume(b);
   return out;
+};
+
+/** Company reference data older than this is fetched again. */
+const SECURITY_REFRESH_DAYS = 7;
+
+/**
+ * The security master: market cap and SIC industry for the symbols held
+ * now, one reference request each when missing or older than a week.
+ */
+export const ensureSecurities = async (symbols: string[]) => {
+  const report: { symbol: string; error?: string }[] = [];
+  for (const symbol of symbols) {
+    const cur = await pool.query(
+      "SELECT 1 FROM securities WHERE symbol = $1 AND fetched_at > NOW() - make_interval(days => $2)",
+      [symbol, SECURITY_REFRESH_DAYS]
+    );
+    if (cur.rows.length) continue;
+    try {
+      const o = await fetchOverview(symbol);
+      await pool.query(
+        `INSERT INTO securities (symbol, name, sic_code, sic_description, market_cap, fetched_at, last_error)
+         VALUES ($1, $2, $3, $4, $5, NOW(), NULL)
+         ON CONFLICT (symbol) DO UPDATE SET name = EXCLUDED.name, sic_code = EXCLUDED.sic_code,
+           sic_description = EXCLUDED.sic_description, market_cap = EXCLUDED.market_cap, fetched_at = NOW(), last_error = NULL`,
+        [symbol, o.name || null, o.sic_code, o.industry || null, o.market_cap > 0 ? o.market_cap : null]
+      );
+      report.push({ symbol });
+    } catch (error: any) {
+      const message = String(error?.message ?? error).slice(0, 300);
+      // Remember the failure, but keep what was known; try again next run.
+      await pool.query(
+        `INSERT INTO securities (symbol, fetched_at, last_error) VALUES ($1, NOW() - make_interval(days => $3), $2)
+         ON CONFLICT (symbol) DO UPDATE SET last_error = EXCLUDED.last_error`,
+        [symbol, message, SECURITY_REFRESH_DAYS + 1]
+      );
+      report.push({ symbol, error: message });
+    }
+  }
+  return report;
 };
 
 const loadCloses = async (symbols: string[]): Promise<Record<string, PricePoint[]>> => {
@@ -314,6 +361,7 @@ export const runValuationJob = async (now: Date = new Date()) => {
     const prices = await ensureCloses(symbols, now);
     const held = await pool.query("SELECT DISTINCT stock_symbol FROM watchlist ORDER BY stock_symbol");
     const volumes = await ensureVolumes(held.rows.map((r) => r.stock_symbol), now);
+    const securities = await ensureSecurities(held.rows.map((r) => r.stock_symbol));
     const portfolios = await pool.query("SELECT id FROM portfolios ORDER BY id");
     const rebuilt = [];
     for (const { id } of portfolios.rows) {
@@ -338,7 +386,7 @@ export const runValuationJob = async (now: Date = new Date()) => {
     } catch (error) {
       console.error("[professional] evaluation failed:", error);
     }
-    return { prices, volumes, rebuilt, professional };
+    return { prices, volumes, securities, rebuilt, professional };
   } finally {
     running = false;
   }
@@ -565,5 +613,59 @@ export const portfolioIndexComparison = async (
     index: { ...index, source: "etf_proxy", return_type: "price", provisional: true },
     indices: indices.map((i) => ({ key: i.key, symbol: i.symbol, name: i.name })),
     ...result,
+  };
+};
+
+/**
+ * Module 4, Exposure & Characteristics, for the owner
+ * (src/performance/exposures.ts). Null when the portfolio is not the caller's.
+ */
+export const portfolioExposures = async (portfolioId: number, userId: number) => {
+  const p = (await pool.query("SELECT id, name, cash FROM portfolios WHERE id = $1 AND user_id = $2", [portfolioId, userId])).rows[0];
+  if (!p) return null;
+  const lotsR = await pool.query(
+    `SELECT w.stock_symbol, w.price_at_time, w.quantity, s.last_price
+     FROM watchlist w LEFT JOIN stocks s ON s.stock_symbol = w.stock_symbol
+     WHERE w.portfolio_id = $1 ORDER BY w.added_at, w.id`,
+    [portfolioId]
+  );
+  const bySymbol = new Map<string, any[]>();
+  for (const lot of lotsR.rows) bySymbol.set(lot.stock_symbol, [...(bySymbol.get(lot.stock_symbol) ?? []), lot]);
+  const symbols = [...bySymbol.keys()];
+  const [secR, barsR, rulesR] = await Promise.all([
+    pool.query("SELECT symbol, name, sic_code, sic_description, market_cap FROM securities WHERE symbol = ANY($1::text[])", [symbols]),
+    pool.query(
+      `SELECT symbol, close, volume FROM (
+         SELECT symbol, date, close, volume, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+         FROM daily_prices WHERE symbol = ANY($1::text[])
+       ) x WHERE rn <= 220 ORDER BY symbol, date`,
+      [symbols]
+    ),
+    pool.query("SELECT kind, symbol, sic_from, sic_to, tech FROM tech_classification"),
+  ]);
+  const sec = new Map(secR.rows.map((r) => [r.symbol, r]));
+  const bars = new Map<string, { close: number; volume: number | null }[]>();
+  for (const r of barsR.rows) bars.set(r.symbol, [...(bars.get(r.symbol) ?? []), { close: Number(r.close), volume: r.volume === null ? null : Number(r.volume) }]);
+  const holdings = symbols.map((symbol) => {
+    const lots = bySymbol.get(symbol)!;
+    const shares = lots.reduce((t, l) => t + Number(l.quantity), 0);
+    const cost = lots.reduce((t, l) => t + Number(l.quantity) * Number(l.price_at_time), 0);
+    const priced = lots.find((l) => l.last_price !== null);
+    const price = priced ? Number(priced.last_price) : shares ? cost / shares : 0;
+    const s = sec.get(symbol);
+    return {
+      symbol,
+      value: shares * price,
+      market_cap: s?.market_cap == null ? null : Number(s.market_cap),
+      sic: s?.sic_code ?? null,
+      bars: bars.get(symbol) ?? [],
+    };
+  });
+  const e = computeExposures({ holdings, cash: Number(p.cash), rules: rulesR.rows as TechRule[] });
+  return {
+    portfolio: { id: p.id, name: p.name },
+    ...e,
+    holdings: e.holdings.map((h) => ({ ...h, industry: sec.get(h.symbol)?.sic_description ?? null })),
+    not_available: ["dividend", "profitability"],
   };
 };

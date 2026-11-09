@@ -816,3 +816,49 @@ INSERT INTO progression_settings (key, value) VALUES
     {"key": "russell2000", "symbol": "IWM", "name": "Russell 2000"}
   ]')
 ON CONFLICT (key) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Security master and Module 4 (Exposure & Characteristics), 2026-11-09
+-- ---------------------------------------------------------------------------
+-- What the market data reference says about each held security: market cap
+-- and SIC industry. Refreshed weekly by the valuation job for held symbols.
+CREATE TABLE IF NOT EXISTS securities (
+  symbol           TEXT PRIMARY KEY,
+  name             TEXT,
+  sic_code         INTEGER,
+  sic_description  TEXT,
+  market_cap       NUMERIC(20,2),
+  fetched_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_error       TEXT
+);
+
+-- Tech Oriented (spec Module 4): a controlled, deterministic mapping, never
+-- decided at runtime. A symbol rule wins over a SIC range. Seeded once;
+-- edits stay.
+CREATE TABLE IF NOT EXISTS tech_classification (
+  id        SERIAL PRIMARY KEY,
+  kind      TEXT NOT NULL CHECK (kind IN ('symbol', 'sic')),
+  symbol    TEXT,
+  sic_from  INTEGER,
+  sic_to    INTEGER,
+  tech      BOOLEAN NOT NULL,
+  label     TEXT NOT NULL
+);
+INSERT INTO tech_classification (kind, symbol, sic_from, sic_to, tech, label)
+SELECT * FROM (VALUES
+  ('sic', NULL, 3570, 3579, TRUE, 'Computer and office equipment'),
+  ('sic', NULL, 3661, 3669, TRUE, 'Communications equipment'),
+  ('sic', NULL, 3670, 3679, TRUE, 'Electronic components and semiconductors'),
+  ('sic', NULL, 5961, 5961, TRUE, 'E-commerce (catalog and mail-order retail)'),
+  ('sic', NULL, 7370, 7379, TRUE, 'Software, internet platforms, data processing'),
+  ('symbol', 'NFLX', NULL, NULL, TRUE, 'Internet platform filed as video rental'),
+  ('symbol', 'PYPL', NULL, NULL, TRUE, 'Fintech'),
+  ('symbol', 'V', NULL, NULL, TRUE, 'Payments network (fintech)'),
+  ('symbol', 'MA', NULL, NULL, TRUE, 'Payments network (fintech)'),
+  ('symbol', 'XYZ', NULL, NULL, TRUE, 'Fintech (Block)'),
+  ('symbol', 'COIN', NULL, NULL, TRUE, 'Fintech (crypto exchange)'),
+  ('symbol', 'HOOD', NULL, NULL, TRUE, 'Fintech (brokerage app)'),
+  ('symbol', 'AFRM', NULL, NULL, TRUE, 'Fintech (consumer credit)'),
+  ('symbol', 'SOFI', NULL, NULL, TRUE, 'Fintech (digital bank)')
+) AS seed(kind, symbol, sic_from, sic_to, tech, label)
+WHERE NOT EXISTS (SELECT 1 FROM tech_classification);
