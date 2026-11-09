@@ -71,7 +71,7 @@ const loadPortfolioForViewer = async (
 ) => {
   const result = await pool.query(
     `SELECT p.id, p.name, p.starting_balance, p.cash, p.created_at,
-            p.user_id, u.display_name,
+            p.user_id, u.display_name, u.avatar_id,
             COALESCE(v.positions_value, 0) AS positions_value,
             COALESCE(v.holdings_count, 0)  AS holdings_count
      FROM portfolios p
@@ -107,7 +107,7 @@ export const getLeaderboard: RequestHandler = async (req, res, next) => {
   try {
     const result = await pool.query(
       `SELECT p.id, p.name, p.starting_balance, p.cash, p.created_at,
-              p.user_id, u.display_name,
+              p.user_id, u.display_name, u.avatar_id,
               COALESCE(v.positions_value, 0) AS positions_value,
               COALESCE(v.holdings_count, 0)  AS holdings_count
        FROM portfolios p
@@ -124,6 +124,7 @@ export const getLeaderboard: RequestHandler = async (req, res, next) => {
           id: row.user_id,
           // display_name is nullable for accounts created before it existed.
           display_name: row.display_name || `Investor #${row.user_id}`,
+          avatar_id: row.avatar_id ?? null,
         },
         is_mine: row.user_id === viewerId,
       }))
@@ -221,6 +222,7 @@ export const getPortfolio: RequestHandler = async (req, res, next) => {
       owner: {
         id: row.user_id,
         display_name: row.display_name || `Investor #${row.user_id}`,
+        avatar_id: row.avatar_id ?? null,
       },
       is_self: isSelf,
       summary: isSelf ? summary : publicPortfolio(summary),
@@ -278,6 +280,7 @@ export const getPortfolioJournal: RequestHandler = async (req, res, next) => {
       owner: {
         id: row.user_id,
         display_name: row.display_name || `Investor #${row.user_id}`,
+        avatar_id: row.avatar_id ?? null,
       },
       is_self: isSelf,
       entries: result.rows.map((entryRow) => {

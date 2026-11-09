@@ -62,7 +62,7 @@ export const getFeed: RequestHandler = async (req, res, next) => {
     const postsResult = await pool.query(
       `SELECT t.id, t.user_id, t.stock_symbol, t.action, t.note, t.price,
               t.occurred_at, t.created_at,
-              u.display_name,
+              u.display_name, u.avatar_id,
               p.id AS portfolio_id, p.name AS portfolio_name,
               s.last_price
        FROM trade_notes t
@@ -100,7 +100,7 @@ export const getFeed: RequestHandler = async (req, res, next) => {
       ),
       pool.query(
         `SELECT c.id, c.trade_note_id, c.user_id, c.body, c.created_at,
-                u.display_name
+                u.display_name, u.avatar_id
          FROM feed_comments c
          JOIN users u ON u.id = c.user_id
          WHERE c.trade_note_id = ANY($1::int[])
@@ -129,6 +129,7 @@ export const getFeed: RequestHandler = async (req, res, next) => {
         user: {
           id: row.user_id,
           display_name: row.display_name || `Investor #${row.user_id}`,
+          avatar_id: row.avatar_id ?? null,
         },
         body: row.body,
         created_at: row.created_at,
@@ -142,6 +143,7 @@ export const getFeed: RequestHandler = async (req, res, next) => {
       user: {
         id: row.user_id,
         display_name: row.display_name || `Investor #${row.user_id}`,
+        avatar_id: row.avatar_id ?? null,
       },
       is_mine: row.user_id === viewerId,
       // Which book the trade was made in. A user runs up to three, and "bought
@@ -280,7 +282,7 @@ export const addComment: RequestHandler = async (req, res, next) => {
       [postId, userId, body]
     );
 
-    const author = await pool.query("SELECT display_name FROM users WHERE id = $1", [userId]);
+    const author = await pool.query("SELECT display_name, avatar_id FROM users WHERE id = $1", [userId]);
 
     res.status(201).json({
       comment: {
@@ -288,6 +290,7 @@ export const addComment: RequestHandler = async (req, res, next) => {
         user: {
           id: userId,
           display_name: author.rows[0]?.display_name || `Investor #${userId}`,
+          avatar_id: author.rows[0]?.avatar_id ?? null,
         },
         body: inserted.rows[0].body,
         created_at: inserted.rows[0].created_at,

@@ -111,7 +111,7 @@ const listOf = (direction: "following" | "followers"): RequestHandler => async (
   const [mine, theirs] = direction === "following" ? ["follower_id", "followee_id"] : ["followee_id", "follower_id"];
   try {
     const r = await pool.query(
-      `SELECT u.id, COALESCE(u.display_name, 'Investor #' || u.id) AS display_name, u.nickname, f.created_at AS since,
+      `SELECT u.id, COALESCE(u.display_name, 'Investor #' || u.id) AS display_name, u.nickname, u.avatar_id, f.created_at AS since,
               EXISTS (SELECT 1 FROM follows b WHERE b.follower_id = $1 AND b.followee_id = u.id) AS you_follow
        FROM follows f JOIN users u ON u.id = f.${theirs}
        WHERE f.${mine} = $1
