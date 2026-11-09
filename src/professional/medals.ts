@@ -26,6 +26,7 @@ export interface MedalTiers {
   /** Return threshold (percent) per tier, Bronze to Sovereign. */
   portfolio_performance: number[];
   annual_platinum_points: number;
+  capital_protector: number[];
 }
 
 export const DEFAULT_MEDAL_TIERS: MedalTiers = {
@@ -34,6 +35,7 @@ export const DEFAULT_MEDAL_TIERS: MedalTiers = {
   green_months: [1, 3, 6, 9, 12],
   portfolio_performance: [10, 20, 50, 75, 100],
   annual_platinum_points: 15,
+  capital_protector: [1, 3, 6, 9, 12],
 };
 
 export const TIER_NAMES = ["", "Bronze", "Silver", "Gold", "Platinum", "Sovereign"] as const;
@@ -195,6 +197,62 @@ export const computeMedals = (portfolios: PortfolioInput[], tiers: MedalTiers = 
       });
     }
   }
+  // ---- Capital Protector (24): distinct quarters protected by a full-quarter portfolio.
+  const protectedQ = new Map<string, { id: number; end: string; down: number }>();
+  for (const p of portfolios) {
+    for (const q of p.evaluation.risk?.quarters ?? []) {
+      if (!q.protector || !q.medal_eligible) continue;
+      const prev = protectedQ.get(q.period);
+      if (!prev || q.portfolio_downside > prev.down) protectedQ.set(q.period, { id: p.id, end: q.end, down: q.portfolio_downside });
+    }
+  }
+  if (protectedQ.size > 0) {
+    const latest = [...protectedQ.keys()].sort().pop()!;
+    const tier = tierFor(protectedQ.size, tiers.capital_protector);
+    if (tier > 0) {
+      out.push({
+        medal_id: "capital_protector",
+        period_key: "",
+        tier,
+        decoration: 0,
+        portfolio_id: protectedQ.get(latest)!.id,
+        relevant_period: latest,
+        qualifying_value: protectedQ.size,
+        highest_streak: protectedQ.size,
+        current_streak: null,
+        subtitle: null,
+        as_of: protectedQ.get(latest)!.end,
+      });
+    }
+  }
+
+  // ---- Phoenix Recovery (25): the furthest tier along any one portfolio's path.
+  let phoenix: { id: number; tiers: string[]; recovered_on: string } | null = null;
+  for (const p of portfolios) {
+    for (const path of p.evaluation.risk?.phoenix ?? []) {
+      const better =
+        !phoenix ||
+        path.tiers.length > phoenix.tiers.length ||
+        (path.tiers.length === phoenix.tiers.length && path.tiers[path.tiers.length - 1] < phoenix.tiers[phoenix.tiers.length - 1]);
+      if (path.tiers.length > 0 && better) phoenix = { id: p.id, tiers: path.tiers, recovered_on: path.recovered_on };
+    }
+  }
+  if (phoenix) {
+    out.push({
+      medal_id: "phoenix_recovery",
+      period_key: "",
+      tier: Math.min(5, phoenix.tiers.length),
+      decoration: 0,
+      portfolio_id: phoenix.id,
+      relevant_period: phoenix.recovered_on.slice(0, 7),
+      // The recovery date, never the depth of the fall (25: no prestige for deeper losses).
+      qualifying_value: null,
+      highest_streak: null,
+      current_streak: null,
+      subtitle: null,
+      as_of: phoenix.tiers[phoenix.tiers.length - 1],
+    });
+  }
   return out;
 };
 
@@ -209,6 +267,8 @@ const TRACK_RANK: Record<string, number> = {
   btm_annual: 5,
   btm_quarterly: 4,
   portfolio_performance: 3,
+  capital_protector: 2.6,
+  phoenix_recovery: 2.4,
   btm_monthly_combo: 2,
   green_months: 1,
 };

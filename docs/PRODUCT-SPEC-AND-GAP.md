@@ -2498,3 +2498,52 @@ Months", "Two Green Years"), the Hebrew names are mine.
 portfolios above the market in a quarter) are stage 4; Risk &
 Discipline is stage 3; competitions and Investor Legacy remain
 foundations ("coming soon").
+
+### Stage 3: Risk & Discipline (built 2026-11-09)
+
+`src/professional/risk.ts` (pure), called by the engine on the same final
+days; calendar helpers moved to `periods.ts`.
+
+**Downside from the opening baseline (spec 22):** min(0, lowest value in
+the period / the period's opening value - 1), for the portfolio and for
+SPY over the same dates - not peak-to-trough. "Better protection" = a less
+severe downside than the benchmark's, strictly (so a benchmark that never
+dips below its opening cannot be beaten).
+
+**Achievements (portfolio level):**
+- Back from the Edge: return below -10%, later back to 0% or more.
+- Phoenix Rise: below -20%, later above 0%.
+- Steady Hands: a full positive calendar year with less downside.
+- Calm Under Fire: below the quarter's opening at some point, positive at
+  the quarter's end.
+- Capital Protector: a positive quarter with less downside.
+- Protected Upside: a full year beating SPY with less downside.
+- Market Resilience: a quarter in which SPY fell, the portfolio active the
+  whole quarter, finishing ahead of SPY. No trading behaviour required.
+
+**Medals:** Capital Protector (quarterly track; distinct quarters by a
+full-quarter portfolio: 1/3/6/9/12; shield emblem). Phoenix Recovery
+(one path per portfolio from a fall to -15% or lower: The Comeback at the
+return to 0%, The Recovery after 30 consecutive days at or above 0%,
+Rising Phoenix on a positive full quarter after that, Phoenix Ascendant on
+two consecutive ones, The Immortal Phoenix on a later full year beating
+SPY with less downside; sequential, never skipped; minimalist phoenix
+emblem; no figure is ever shown, so the depth of a fall carries no
+prestige).
+
+**Production:** the stage 2 placeholders are switched on by migration
+(category active, both medals enabled with their descriptions, seven new
+XP keys added as null); the new achievements are seeded. XP still
+undecided.
+
+**My choices, flagged:**
+- "Qualifying negative benchmark period" for Market Resilience = a calendar
+  quarter with a negative SPY return.
+- Calm Under Fire and Capital Protector follow the Beat the Market quarter
+  rules (opened in month 1-2: achievement from the opening date; the
+  Capital Protector medal needs the whole quarter).
+- Every completed recovery is its own Back from the Edge / Phoenix Rise
+  record (fall again, recover again = a new record); the same event is
+  never rewarded twice.
+- A new fall to -15% ends a Phoenix path (its tiers stay) and starts a new
+  one; Silver's 30 days may start any day after the recovery.

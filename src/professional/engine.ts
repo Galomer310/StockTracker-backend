@@ -1,4 +1,6 @@
 import { addDays, closeOn, PricePoint } from "../performance/history";
+import { evaluateRisk, RiskEvaluation } from "./risk";
+import { daysBetween, monthEnd, monthStart, nextMonth, nextQuarter, quarterMonths, quarterOf } from "./periods";
 
 /* ===========================================================================
    Professional achievements, stage 2: the evaluation engine. Pure.
@@ -68,28 +70,8 @@ export const WINDOW_DAYS = 30;
 export const GRACE_DAYS = 7;
 export const REQUIRED_STREAK_DAYS = 7;
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const monthStart = (m: string) => `${m}-01`;
-export const monthEnd = (m: string) => {
-  const [y, mo] = m.split("-").map(Number);
-  return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10);
-};
-const nextMonth = (m: string) => {
-  const [y, mo] = m.split("-").map(Number);
-  return mo === 12 ? `${y + 1}-01` : `${y}-${pad(mo + 1)}`;
-};
-export const quarterOf = (date: string) => `${date.slice(0, 4)}-Q${Math.floor((Number(date.slice(5, 7)) - 1) / 3) + 1}`;
-const quarterMonths = (q: string) => {
-  const y = q.slice(0, 4);
-  const n = Number(q.slice(6));
-  return [1, 2, 3].map((k) => `${y}-${pad((n - 1) * 3 + k)}`);
-};
-const nextQuarter = (q: string) => {
-  const y = Number(q.slice(0, 4));
-  const n = Number(q.slice(6));
-  return n === 4 ? `${y + 1}-Q1` : `${y}-Q${n + 1}`;
-};
-const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+// Calendar helpers live in periods.ts, shared with risk.ts.
+export { monthEnd, quarterOf } from "./periods";
 
 export const evaluatePortfolio = (input: EngineInput) => {
   const { openedOn, benchmark, finalThrough } = input;
@@ -107,6 +89,8 @@ export const evaluatePortfolio = (input: EngineInput) => {
       btm_year: { current: 0, highest: 0, highest_end: null as string | null },
     },
     windows: [] as ReturnType<typeof returnWindows>["windows"],
+    /** Stage 3, Risk & Discipline (risk.ts). */
+    risk: { quarters: [], years: [], phoenix: [] } as Omit<RiskEvaluation, "records">,
   };
   if (!finalThrough || finalThrough < openedOn) return empty;
 
@@ -228,6 +212,12 @@ export const evaluatePortfolio = (input: EngineInput) => {
       records.push({ achievement_id: "btm_year_streak", period_id: String(ys), earned_on: r.end, qualifying_value: ys, benchmark_value: null, outperformance: null, details: { through: y } });
     }
   }
+
+  // ---- Risk & Discipline (21-25), on the same final days.
+  const finalDays = input.days.filter((d) => d.date >= openedOn && d.date <= finalThrough);
+  const risk = evaluateRisk({ openedOn, days: finalDays, benchmark });
+  records.push(...risk.records);
+  out.risk = { quarters: risk.quarters, years: risk.years, phoenix: risk.phoenix };
 
   // ---- Portfolio Return milestones (15-16).
   const w = returnWindows(input.days.filter((d) => d.date >= openedOn && d.date <= finalThrough));

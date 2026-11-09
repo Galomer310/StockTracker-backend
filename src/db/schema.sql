@@ -774,3 +774,20 @@ INSERT INTO progression_settings (key, value) VALUES
     "green_month": null, "green_streak": null
   }')
 ON CONFLICT (key) DO NOTHING;
+
+-- Stage 3, Risk & Discipline (2026-11-09). The catalog is seeded insert-only,
+-- so rows seeded as placeholders in stage 2 are switched on here - only
+-- while they still hold the placeholder text, so a later edit stays.
+UPDATE professional_categories SET status = 'active' WHERE id = 'risk_discipline' AND status = 'coming_soon';
+UPDATE medals SET is_enabled = TRUE, icon = 'shield_growth',
+  description_en = 'Rises with every distinct calendar quarter a portfolio active for the whole quarter finished positive with less downside than the S&P 500: 1 Bronze, 3 Silver, 6 Gold, 9 Platinum, 12 Sovereign. Quarters need not be consecutive.',
+  description_he = 'עולה עם כל רבעון קלנדרי שבו תיק שהיה פעיל כל הרבעון סיים בחיוב עם ירידה מתונה מזו של ה-S&P 500: 1 ארד, 3 כסף, 6 זהב, 9 פלטינה, 12 ריבון. הרבעונים לא חייבים להיות רצופים.'
+WHERE id = 'capital_protector' AND description_en LIKE 'Coming with%';
+UPDATE medals SET is_enabled = TRUE, icon = 'phoenix',
+  description_en = 'Recovery from a fall to -15% or lower, along one portfolio''s path: The Comeback (back to 0%), The Recovery (30 days at or above 0%), Rising Phoenix (a positive full quarter), Phoenix Ascendant (two in a row), The Immortal Phoenix (a full year beating the S&P 500 with less downside). Never for the depth of the fall.',
+  description_he = 'התאוששות מירידה ל-15%- ומטה, לאורך המסלול של תיק אחד: הקאמבק (חזרה ל-0%), ההתאוששות (30 יום ב-0% ומעלה), הפניקס העולה (רבעון מלא חיובי), הפניקס המתעלה (שניים ברצף), הפניקס הנצחי (שנה מלאה מעל ה-S&P 500 עם ירידה מתונה יותר). אף פעם לא על עומק הירידה.'
+WHERE id = 'phoenix_recovery' AND description_en LIKE 'Coming with%';
+-- New XP keys, undecided like the rest; keys already set keep their value.
+UPDATE progression_settings SET value = '{"back_from_edge": null, "phoenix_rise": null, "steady_hands": null, "calm_under_fire": null,
+  "capital_protector": null, "protected_upside": null, "market_resilience": null}'::jsonb || value
+WHERE key = 'professional_xp';

@@ -404,9 +404,21 @@ export const medalAward = (m: MedalView): Award => ({
     tier: m.tier,
     decoration: m.decoration,
     subtitle: m.subtitle,
-    figure: m.medal_id === "btm_monthly_combo" || m.medal_id === "green_months" ? m.highest_streak : m.qualifying_value,
+    // Phoenix shows no figure: never the depth of the fall (spec 25).
+    figure:
+      m.medal_id === "phoenix_recovery"
+        ? null
+        : m.medal_id === "btm_monthly_combo" || m.medal_id === "green_months" || m.medal_id === "capital_protector"
+          ? m.highest_streak
+          : m.qualifying_value,
     figure_kind:
-      m.medal_id === "portfolio_performance" ? "return" : m.medal_id === "btm_monthly_combo" || m.medal_id === "green_months" ? "months" : "outperformance",
+      m.medal_id === "portfolio_performance"
+        ? "return"
+        : m.medal_id === "btm_monthly_combo" || m.medal_id === "green_months"
+          ? "months"
+          : m.medal_id === "capital_protector"
+            ? "quarters"
+            : "outperformance",
     period_label: m.medal_id === "btm_annual" ? periodLabel(m.period_key) : m.relevant_period_label,
     current_streak: m.current_streak,
   },
