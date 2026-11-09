@@ -270,9 +270,9 @@ export const fetchUnadjustedCloses = async (
   symbol: string,
   from: string,
   to: string
-): Promise<{ date: string; close: number }[]> => {
+): Promise<{ date: string; close: number; volume: number }[]> => {
   const bars = await dailyAggregates(symbol, Date.parse(`${from}T00:00:00Z`), Date.parse(`${to}T00:00:00Z`), false);
-  return bars.filter((b) => b.c > 0).map((b) => ({ date: isoDay(b.t), close: b.c }));
+  return bars.filter((b) => b.c > 0).map((b) => ({ date: isoDay(b.t), close: b.c, volume: b.v }));
 };
 
 // Intraday bars for a "last day" view.

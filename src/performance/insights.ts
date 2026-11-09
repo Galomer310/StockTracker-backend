@@ -100,6 +100,42 @@ export const lastWeekdayOf = (month: string): string => {
   return d.toISOString().slice(0, 10);
 };
 
+export interface SessionPoint {
+  date: string;
+  index: number;
+  estimated: boolean;
+}
+
+/**
+ * The performance index on the opening date and then on every trading
+ * session, up to the last session every benchmark with data has a close
+ * for (so comparisons share their end). Sessions are the benchmarks' trading
+ * dates; with no benchmark data yet, Monday to Friday stands in. Stops where
+ * the index stops. Null when the opening date is not in the history.
+ */
+export const sessionPoints = (openedOn: string, days: IndexDay[], benchmarks: BenchmarkInput[]): SessionPoint[] | null => {
+  const opening = days.find((d) => d.date === openedOn);
+  if (!opening || opening.perf_index === null) return null;
+
+  const withData = benchmarks.filter((b) => b.closes.length > 0);
+  const sessionSet = new Set<string>();
+  for (const b of withData) for (const c of b.closes) sessionSet.add(c.date);
+  const cap = withData.length ? withData.map((b) => b.closes[b.closes.length - 1].date).sort()[0] : null;
+  const isSession = (date: string) => {
+    if (sessionSet.size > 0) return sessionSet.has(date);
+    const wd = new Date(`${date}T00:00:00Z`).getUTCDay();
+    return wd !== 0 && wd !== 6;
+  };
+
+  const points: SessionPoint[] = [{ date: openedOn, index: opening.perf_index, estimated: opening.estimated }];
+  for (const d of days) {
+    if (d.date <= openedOn || !isSession(d.date) || (cap && d.date > cap)) continue;
+    if (d.perf_index === null) break;
+    points.push({ date: d.date, index: d.perf_index, estimated: d.estimated });
+  }
+  return points;
+};
+
 export const computeInsights = (input: {
   openedOn: string;
   /** Today in the platform's time zone. */
@@ -109,30 +145,8 @@ export const computeInsights = (input: {
 }): InsightsOutcome => {
   const { openedOn, today, days, benchmarks } = input;
   const age_days = Math.max(0, daysBetween(openedOn, today));
-  const byDate = new Map(days.map((d) => [d.date, d]));
-  const opening = byDate.get(openedOn);
-  if (!opening || opening.perf_index === null) return { ok: false, reason: "no_history", age_days };
-
-  // The common end: no later than the last close of any benchmark that has data.
-  const withData = benchmarks.filter((b) => b.closes.length > 0);
-  const sessionSet = new Set<string>();
-  for (const b of withData) for (const c of b.closes) sessionSet.add(c.date);
-  const cap = withData.length ? withData.map((b) => b.closes[b.closes.length - 1].date).sort()[0] : null;
-
-  const points: { date: string; index: number; estimated: boolean }[] = [
-    { date: openedOn, index: opening.perf_index, estimated: opening.estimated },
-  ];
-  // Without any benchmark data yet, Monday to Friday stands in for sessions.
-  const isSession = (date: string) => {
-    if (sessionSet.size > 0) return sessionSet.has(date);
-    const wd = new Date(`${date}T00:00:00Z`).getUTCDay();
-    return wd !== 0 && wd !== 6;
-  };
-  for (const d of days) {
-    if (d.date <= openedOn || !isSession(d.date) || (cap && d.date > cap)) continue;
-    if (d.perf_index === null) break;
-    points.push({ date: d.date, index: d.perf_index, estimated: d.estimated });
-  }
+  const points = sessionPoints(openedOn, days, benchmarks);
+  if (points === null) return { ok: false, reason: "no_history", age_days };
   if (points.length < 2) return { ok: false, reason: "too_new", age_days };
 
   const start = points[0];
