@@ -223,3 +223,74 @@ export const computeInsights = (input: {
     },
   };
 };
+
+/* ---------------------------------------------------------------------------
+   Comparing a portfolio with one market index over a chosen period (spec
+   "Existing performance comparison feature", 41). Same conventions as
+   above: the genuine performance index, the index valued at its close on or
+   before each date, identical start and end dates for both, trading
+   sessions only between them, both rebased to 100.
+   --------------------------------------------------------------------------- */
+
+export type IndexComparison =
+  | {
+      ok: true;
+      start: string;
+      end: string;
+      portfolio_return: number;
+      index_return: number;
+      excess_return: number;
+      chart: { date: string; portfolio: number; index: number }[];
+      estimated: boolean;
+    }
+  | { ok: false; reason: "no_history" | "no_index_data" | "too_short" };
+
+export const compareWithIndex = (input: {
+  openedOn: string;
+  days: IndexDay[];
+  closes: PricePoint[];
+  /** Optional bounds; clamped to what both series cover. */
+  from?: string | null;
+  to?: string | null;
+}): IndexComparison & { range: { earliest: string; latest: string | null } } => {
+  const { openedOn, days, closes } = input;
+  const lastIndexDay = closes.length ? closes[closes.length - 1].date : null;
+  const lastDay = [...days].reverse().find((d) => d.perf_index !== null)?.date ?? null;
+  const latest = lastIndexDay && lastDay ? (lastIndexDay < lastDay ? lastIndexDay : lastDay) : null;
+  // Both must exist on the start date: the later of the opening and the index's first price.
+  const earliest = closes.length && closes[0].date > openedOn ? closes[0].date : openedOn;
+  const range = { earliest, latest };
+  if (!days.find((d) => d.date === openedOn && d.perf_index !== null)) return { ok: false, reason: "no_history", range };
+  if (!closes.length || !latest) return { ok: false, reason: "no_index_data", range };
+
+  const start = input.from && input.from > earliest ? input.from : earliest;
+  const end = input.to && input.to < latest ? input.to : latest;
+  const byDate = new Map(days.map((d) => [d.date, d]));
+  const base = byDate.get(start);
+  const baseClose = closeOn(closes, start);
+  if (!base || base.perf_index === null || baseClose === null || end <= start) return { ok: false, reason: "too_short", range };
+
+  const sessions = new Set(closes.map((c) => c.date));
+  const points = [{ date: start, index: base.perf_index, close: baseClose, estimated: base.estimated }];
+  for (const d of days) {
+    if (d.date <= start || d.date > end || !sessions.has(d.date)) continue;
+    if (d.perf_index === null) break;
+    points.push({ date: d.date, index: d.perf_index, close: closeOn(closes, d.date)!, estimated: d.estimated });
+  }
+  if (points.length < 2) return { ok: false, reason: "too_short", range };
+  const first = points[0];
+  const last = points[points.length - 1];
+  const p = last.index / first.index - 1;
+  const b = last.close / first.close - 1;
+  return {
+    ok: true,
+    start: first.date,
+    end: last.date,
+    portfolio_return: p,
+    index_return: b,
+    excess_return: p - b,
+    chart: points.map((x) => ({ date: x.date, portfolio: (x.index / first.index) * 100, index: (x.close / first.close) * 100 })),
+    estimated: points.some((x) => x.estimated),
+    range,
+  };
+};

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDays } from "./history";
-import { computeInsights, IndexDay, lastWeekdayOf } from "./insights";
+import { compareWithIndex, computeInsights, IndexDay, lastWeekdayOf } from "./insights";
 
 // Every calendar date from `from` to `to`, carrying the index forward over
 // dates `values` does not name (weekends, as the stored history does).
@@ -179,5 +179,43 @@ describe("computeInsights", () => {
     if (!out.ok) throw new Error(out.reason);
     expect(out.insights.end).toBe("2026-10-06");
     expect(out.insights.estimated).toBe(true);
+  });
+});
+
+describe("compareWithIndex", () => {
+  const days = calendar("2026-09-28", "2026-11-09", {
+    "2026-09-29": 1.02, "2026-10-01": 1.1, "2026-10-05": 1.012, "2026-10-30": 1.1, "2026-11-05": 1.12, "2026-11-06": 1.155,
+  });
+  const dia = flat("2026-09-25", "2026-11-06", 400).map((c) => (c.date >= "2026-10-15" ? { ...c, close: 420 } : c));
+
+  it("since opening: same start and end, rebased to 100", () => {
+    const r = compareWithIndex({ openedOn: "2026-09-28", days, closes: dia });
+    if (!r.ok) throw new Error(r.reason);
+    expect([r.start, r.end]).toEqual(["2026-09-28", "2026-11-06"]);
+    expect(r.portfolio_return).toBeCloseTo(0.155);
+    expect(r.index_return).toBeCloseTo(0.05);
+    expect(r.excess_return).toBeCloseTo(0.105);
+    expect(r.chart[0]).toEqual({ date: "2026-09-28", portfolio: 100, index: 100 });
+    expect(r.chart.map((c) => c.date)).not.toContain("2026-10-03"); // a Saturday
+    expect(r.range).toEqual({ earliest: "2026-09-28", latest: "2026-11-06" });
+  });
+
+  it("a custom period, starting on a weekend: both measured from that date's values", () => {
+    const r = compareWithIndex({ openedOn: "2026-09-28", days, closes: dia, from: "2026-10-03", to: "2026-10-30" });
+    if (!r.ok) throw new Error(r.reason);
+    expect([r.start, r.end]).toEqual(["2026-10-03", "2026-10-30"]);
+    expect(r.portfolio_return).toBeCloseTo(0); // 1.1 on Friday 2 Oct held over the weekend, 1.1 on 30 Oct
+    expect(r.index_return).toBeCloseTo(0.05);
+  });
+
+  it("clamps to what both cover, and says why when it cannot compare", () => {
+    const r = compareWithIndex({ openedOn: "2026-09-28", days, closes: dia, from: "2020-01-01", to: "2030-01-01" });
+    expect(r.ok && [r.start, r.end]).toEqual(["2026-09-28", "2026-11-06"]);
+    expect(compareWithIndex({ openedOn: "2026-09-28", days, closes: [] })).toMatchObject({ ok: false, reason: "no_index_data" });
+    expect(compareWithIndex({ openedOn: "2026-09-28", days: [], closes: dia })).toMatchObject({ ok: false, reason: "no_history" });
+    expect(compareWithIndex({ openedOn: "2026-09-28", days, closes: dia, from: "2026-11-06", to: "2026-11-06" })).toMatchObject({ ok: false, reason: "too_short" });
+    // An index whose prices begin after the opening: compared from its first price.
+    const late = compareWithIndex({ openedOn: "2026-09-28", days, closes: dia.filter((c) => c.date >= "2026-10-05") });
+    expect(late.ok && [late.start, late.range.earliest]).toEqual(["2026-10-05", "2026-10-05"]);
   });
 });

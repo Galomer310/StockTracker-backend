@@ -2591,3 +2591,22 @@ directly), dormant in practice.
 
 **Still not built:** Competition Excellence (no competitions system) and
 Investor Legacy (not specified); both stay "coming soon".
+
+## Comparing a portfolio with a market index (spec 41, built 2026-11-09)
+
+`GET /portfolios/:id/compare-index?index=&from=&to=` (owner only) and the
+page `/compare/market`, reached from the player comparison and from
+Performance Insights. The player chooses a portfolio, an index and a
+period (1M, 3M, 6M, YTD, 1Y, since opening) or custom dates. Same
+conventions as Performance Insights: the genuine performance index (capital
+rewards are not return), the index at its close on or before each date,
+identical start and end dates (clamped to what both cover; an index whose
+prices begin later starts the comparison there), sessions only, both rebased
+to 100. Choosing an index never changes Beat the Market (always the S&P 500
+stand-in).
+
+**Indices (setting `comparison_indices`), through funds that track them
+(price return, provisional; no index data on the current plan):** S&P 500 =
+SPY, Nasdaq Composite = ONEQ, Dow Jones = DIA, Russell 2000 = IWM. The
+valuation job keeps their closes: the first run fetches two years for each
+new fund (one request each), then one request a day each.
