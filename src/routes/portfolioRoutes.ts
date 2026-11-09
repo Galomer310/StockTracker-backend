@@ -2,7 +2,7 @@ import express from "express";                 // Import express
 import { listPortfolios, createPortfolio } from "../controllers/portfolioController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { watchlistLimiter } from "../middleware/rateLimiter";    // Per-user limit
-import { portfolioHistory, portfolioInsights, portfolioProfile } from "../performance/service"; // Rebuilt daily values, Modules 3 and 5
+import { ComparisonError, portfolioHistory, portfolioIndexComparison, portfolioInsights, portfolioProfile } from "../performance/service"; // Rebuilt daily values, Modules 3 and 5, index comparison
 import { getAllocation, getComposition } from "../controllers/portfolioDashboardController";
 
 const router = express.Router();               // Create a new router instance
@@ -82,6 +82,32 @@ router.get("/:id/profile", async (req, res, next) => {
     }
     res.json(profile);
   } catch (error) {
+    next(error);
+  }
+});
+
+// GET /portfolios/:id/compare-index?index=dow&from=YYYY-MM-DD&to=YYYY-MM-DD
+// The portfolio against one market index (S&P 500, Nasdaq Composite, Dow
+// Jones, Russell 2000) over the same dates, rebased to 100. A comparison
+// only: it never changes Beat the Market eligibility. Owner only.
+router.get("/:id/compare-index", async (req, res, next) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid portfolio id" });
+    return;
+  }
+  try {
+    const result = await portfolioIndexComparison(id, (req as any).user.id, req.query);
+    if (!result) {
+      res.status(404).json({ error: "Portfolio not found" });
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    if (error instanceof ComparisonError) {
+      res.status(400).json({ error: "This comparison is not valid.", code: error.code });
+      return;
+    }
     next(error);
   }
 });

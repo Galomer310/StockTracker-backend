@@ -803,3 +803,16 @@ WHERE key = 'professional_xp';
 INSERT INTO progression_settings (key, value) VALUES
   ('five_star_medals', '["btm_annual", "btm_quarterly", "btm_monthly_combo", "portfolio_performance", "green_months", "capital_protector", "phoenix_recovery"]')
 ON CONFLICT (key) DO NOTHING;
+
+-- Market indices a player can compare a portfolio with (spec 41), each
+-- through a fund that tracks it (index data is not on the current plan),
+-- price return, provisional. Separate from the official benchmark: choosing
+-- one here never changes Beat the Market eligibility. Edit to switch.
+INSERT INTO progression_settings (key, value) VALUES
+  ('comparison_indices', '[
+    {"key": "sp500", "symbol": "SPY", "name": "S&P 500"},
+    {"key": "nasdaq_composite", "symbol": "ONEQ", "name": "Nasdaq Composite"},
+    {"key": "dow", "symbol": "DIA", "name": "Dow Jones Industrial Average"},
+    {"key": "russell2000", "symbol": "IWM", "name": "Russell 2000"}
+  ]')
+ON CONFLICT (key) DO NOTHING;

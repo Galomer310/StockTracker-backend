@@ -2,7 +2,7 @@ import pool from "../config/db";
 import { localDate } from "../metrics/calendar";
 import { fetchUnadjustedCloses } from "../services/massive";
 import { compositionEvents } from "./composition";
-import { computeInsights, sessionPoints } from "./insights";
+import { compareWithIndex, computeInsights, sessionPoints } from "./insights";
 import { computeProfile, DEFAULT_SCALES, ProfileScales } from "./profile";
 import { addDays, checkAgainstLive, finalThrough, lastFinalSession, performanceIndexOf, PricePoint, reconstructDailyValues } from "./history";
 
@@ -53,6 +53,26 @@ const DEFAULT_NASDAQ100: BenchmarkSetting = {
   source: "etf_proxy",
   return_type: "price",
   provisional: true,
+};
+
+export interface ComparisonIndex {
+  key: string;
+  symbol: string;
+  name: string;
+}
+
+const DEFAULT_COMPARISON_INDICES: ComparisonIndex[] = [
+  { key: "sp500", symbol: "SPY", name: "S&P 500" },
+  { key: "nasdaq_composite", symbol: "ONEQ", name: "Nasdaq Composite" },
+  { key: "dow", symbol: "DIA", name: "Dow Jones Industrial Average" },
+  { key: "russell2000", symbol: "IWM", name: "Russell 2000" },
+];
+
+/** The indices of the comparison screen (spec 41), from the `comparison_indices` setting. */
+export const loadComparisonIndices = async (): Promise<ComparisonIndex[]> => {
+  const r = await pool.query("SELECT value FROM progression_settings WHERE key = 'comparison_indices'");
+  const v = r.rows[0]?.value;
+  return Array.isArray(v) && v.length ? v : DEFAULT_COMPARISON_INDICES;
 };
 
 /** Every benchmark Performance Insights compares with, in display order. */
@@ -285,7 +305,10 @@ export const runValuationJob = async (now: Date = new Date()) => {
   if (running) return null;
   running = true;
   try {
-    const marks = [...new Set((await loadBenchmarks()).map((b) => b.symbol))];
+    // The benchmarks, and the indices players can compare with (spec 41).
+    const marks = [
+      ...new Set([...(await loadBenchmarks()).map((b) => b.symbol), ...(await loadComparisonIndices()).map((i) => i.symbol)]),
+    ];
     const traded = await pool.query("SELECT DISTINCT stock_symbol FROM trade_notes ORDER BY stock_symbol");
     const symbols = [...marks, ...traded.rows.map((r) => r.stock_symbol).filter((s) => !marks.includes(s))];
     const prices = await ensureCloses(symbols, now);
@@ -491,5 +514,56 @@ export const portfolioProfile = async (portfolioId: number, userId: number, now:
     history_built: days.length > 0,
     scales: { provisional: true },
     ...profile,
+  };
+};
+
+export class ComparisonError extends Error {
+  constructor(public code: string) {
+    super(code);
+  }
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The owner's portfolio against one market index over a period (spec 41).
+ * Null when the portfolio is not the caller's.
+ */
+export const portfolioIndexComparison = async (
+  portfolioId: number,
+  userId: number,
+  query: { index?: unknown; from?: unknown; to?: unknown }
+) => {
+  const indices = await loadComparisonIndices();
+  const key = typeof query.index === "string" && query.index ? query.index : indices[0].key;
+  const index = indices.find((i) => i.key === key);
+  if (!index) throw new ComparisonError("UNKNOWN_INDEX");
+  const date = (v: unknown) => {
+    if (v === undefined || v === "") return null;
+    if (typeof v !== "string" || !ISO_DATE.test(v) || Number.isNaN(Date.parse(v))) throw new ComparisonError("INVALID_DATE");
+    return v;
+  };
+  const from = date(query.from);
+  const to = date(query.to);
+  if (from && to && from >= to) throw new ComparisonError("INVALID_RANGE");
+
+  const p = (await pool.query("SELECT id, name, created_at FROM portfolios WHERE id = $1 AND user_id = $2", [portfolioId, userId])).rows[0];
+  if (!p) return null;
+  const [rows, closes] = await Promise.all([
+    pool.query("SELECT date, perf_index, estimated FROM portfolio_daily_values WHERE portfolio_id = $1 ORDER BY date", [portfolioId]),
+    loadCloses([index.symbol]),
+  ]);
+  const result = compareWithIndex({
+    openedOn: localDate(new Date(p.created_at)),
+    days: rows.rows.map((r) => ({ date: dateText(r.date), perf_index: r.perf_index === null ? null : Number(r.perf_index), estimated: r.estimated })),
+    closes: closes[index.symbol] ?? [],
+    from,
+    to,
+  });
+  return {
+    portfolio: { id: p.id, name: p.name },
+    index: { ...index, source: "etf_proxy", return_type: "price", provisional: true },
+    indices: indices.map((i) => ({ key: i.key, symbol: i.symbol, name: i.name })),
+    ...result,
   };
 };
