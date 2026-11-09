@@ -320,6 +320,8 @@ export interface CompanyOverview {
   country: string;
   sector: string;
   industry: string;
+  /** SIC industry code, for the security master; null when not reported. */
+  sic_code: number | null;
   market_cap: number;
   pe_ratio: number;
   dividend_yield: number;
@@ -360,6 +362,7 @@ export const fetchOverview = async (symbol: string): Promise<CompanyOverview> =>
     country: t.locale === "us" ? "USA" : String(t.locale ?? "").toUpperCase(),
     sector: "",
     industry: t.sic_description ? titleCase(t.sic_description) : "",
+    sic_code: t.sic_code ? Number(t.sic_code) : null,
     market_cap: num(t.market_cap),
     pe_ratio: 0,
     dividend_yield: 0,
