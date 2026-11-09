@@ -162,7 +162,8 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | Method | Path | |
 |---|---|---|
 | GET | `/players/me/card` | Your Player Card. Every figure is calculated on the server; figures without data or rules yet come back as locked or unavailable, with the reason. |
-| PATCH | `/players/me` | Change your bio (at most 100 characters), first name (at most 50) and avatar (`avatar_id`, one of the gallery's ids, or null for the default). The nickname cannot be changed yet, and pictures cannot be uploaded. |
+| PATCH | `/players/me` | Change your bio (at most 100 characters), first name (at most 50), avatar (`avatar_id`, one of the gallery's ids, or null for the default) and username (`nickname`; rules in `src/services/nickname.ts`). A username is unique without regard to case, can be changed once every 30 days (409 `NICKNAME_CHANGE_TOO_SOON`) and never removed; a taken one is 409 `NICKNAME_TAKEN`. Pictures cannot be uploaded. |
+| GET | `/players/nickname-availability?nickname=` | Whether a username could be chosen now: `{ available: true }`, or `{ available: false, code }` with the broken rule or `NICKNAME_TAKEN`. |
 | GET | `/players/me/titles` | Your title collection: every level title, marked unlocked or locked, and the active one. |
 | PUT | `/players/me/title` | Make an unlocked title the active one. A locked title is refused (403 `TITLE_NOT_OWNED`). |
 | GET | `/players/me/achievements` | All game achievements with your state and progress for each, and per-category counts. |

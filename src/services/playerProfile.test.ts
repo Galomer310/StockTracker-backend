@@ -44,7 +44,7 @@ describe("validateProfileUpdate", () => {
   });
 
   it("refuses fields the player may not edit, saying which", () => {
-    expect(validateProfileUpdate({ nickname: "taken" })).toMatchObject({ ok: false, code: "NOT_EDITABLE", field: "nickname" });
+    expect(validateProfileUpdate({ avatar_url: "https://x.example/a.png" })).toMatchObject({ ok: false, code: "NOT_EDITABLE", field: "avatar_url" });
     expect(validateProfileUpdate({ bio: "ok", level: 99 })).toMatchObject({ ok: false, code: "NOT_EDITABLE", field: "level" });
   });
 

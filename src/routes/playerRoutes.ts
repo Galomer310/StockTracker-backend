@@ -1,5 +1,5 @@
 import express from "express";                 // Import express
-import { getMyPlayerCard, updateMyProfile } from "../controllers/playerController";
+import { checkNicknameAvailability, getMyPlayerCard, updateMyProfile } from "../controllers/playerController";
 import {
   acknowledgeMyNotifications,
   getMyAchievements,
@@ -27,8 +27,11 @@ router.use(authenticateUser, socialLimiter);
 // GET /players/me/card - the signed-in player's Player Card
 router.get("/me/card", getMyPlayerCard);
 
-// PATCH /players/me - change your own bio and first name
+// PATCH /players/me - change your own bio, first name, avatar and username
 router.patch("/me", updateMyProfile);
+
+// GET /players/nickname-availability?nickname=... - is this username free?
+router.get("/nickname-availability", checkNicknameAvailability);
 
 // Player titles: the collection, and choosing the active one
 router.get("/me/titles", getMyTitles);

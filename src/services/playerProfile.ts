@@ -1,16 +1,18 @@
+import { NicknameErrorCode, validateNickname } from "./nickname";
+
 /* ===========================================================================
    Player profile edits.
    ---------------------------------------------------------------------------
    What a player may change about themselves on the Player Card (spec 3.5,
-   11): the bio, the first name and the avatar. Pure, so the rules can be
-   tested without a database.
+   11): the bio, the first name, the avatar and the username (nickname).
+   Pure, so the rules can be tested without a database. The username's own
+   rules are in ./nickname.ts; whether it is free, and how often it may
+   change, need the database and are checked by the controller.
 
    The avatar is chosen from a fixed gallery (AVATAR_IDS); the artwork lives
    in the frontend and only its id is stored, in users.avatar_id.
 
    Deliberately NOT editable here:
-   - nickname: mandatory and unique, but its rules (case sensitivity,
-     allowed characters, length, how often it may change) are undecided;
    - avatar_url: an uploaded picture needs file storage, which does not
      exist yet;
    - level, title, XP, and everything else the system sets - the spec says
@@ -60,6 +62,7 @@ export const AVATAR_IDS = [
 export type AvatarId = (typeof AVATAR_IDS)[number];
 
 export type ProfileErrorCode =
+  | NicknameErrorCode
   | "INVALID_BODY"
   | "NOT_EDITABLE"
   | "NOTHING_TO_UPDATE"
@@ -75,16 +78,17 @@ export interface ProfileUpdate {
   first_name?: string | null;
   /** null returns to the default picture (the nickname's initial). */
   avatar_id?: AvatarId | null;
+  /** The username as it will be stored; its uniqueness is checked against the database. */
+  nickname?: string;
 }
 
 export type ProfileValidation =
   | { ok: true; update: ProfileUpdate }
   | { ok: false; code: ProfileErrorCode; field?: string; error: string };
 
-const EDITABLE = new Set(["bio", "first_name", "avatar_id"]);
+const EDITABLE = new Set(["bio", "first_name", "avatar_id", "nickname"]);
 
 const NOT_EDITABLE_REASON: Record<string, string> = {
-  nickname: "The nickname cannot be changed yet; its rules are still being decided.",
   avatar_url: "The profile picture cannot be changed yet.",
 };
 
@@ -114,7 +118,7 @@ export const validateProfileUpdate = (body: unknown): ProfileValidation => {
     if (!EDITABLE.has(key)) {
       return fail(
         "NOT_EDITABLE",
-        NOT_EDITABLE_REASON[key] ?? `"${key}" cannot be changed. Only bio, first_name and avatar_id can.`,
+        NOT_EDITABLE_REASON[key] ?? `"${key}" cannot be changed. Only bio, first_name, avatar_id and nickname can.`,
         key
       );
     }
@@ -157,8 +161,14 @@ export const validateProfileUpdate = (body: unknown): ProfileValidation => {
     update.avatar_id = id as AvatarId | null;
   }
 
+  if ("nickname" in fields) {
+    const checked = validateNickname(fields.nickname);
+    if (!checked.ok) return fail(checked.code, checked.error, "nickname");
+    update.nickname = checked.nickname;
+  }
+
   if (Object.keys(update).length === 0) {
-    return fail("NOTHING_TO_UPDATE", "Nothing to change. Send bio, first_name or avatar_id.");
+    return fail("NOTHING_TO_UPDATE", "Nothing to change. Send bio, first_name, avatar_id or nickname.");
   }
   return { ok: true, update };
 };

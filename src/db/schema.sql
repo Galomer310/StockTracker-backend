@@ -180,10 +180,10 @@ END $$;
 -- Player Card (docs/PRODUCT-SPEC-AND-GAP.md, Parts 3-4)
 -- ---------------------------------------------------------------------------
 
--- Player identity. All four start empty: nothing sets them until the profile
--- editing endpoint exists. The nickname is meant to be unique, but whether
--- uniqueness ignores case - and the other nickname rules - is not decided, so
--- no unique index yet. The bio limit is the spec's own.
+-- Player identity. All four start empty and the player fills them in from
+-- the Player Card. The nickname is the player's username; its rules are in
+-- src/services/nickname.ts and its uniqueness index is further down. The bio
+-- limit is the spec's own.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname   TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bio        TEXT NOT NULL DEFAULT '';
@@ -194,6 +194,24 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 -- The allowed ids are AVATAR_IDS in src/services/playerProfile.ts, not a
 -- CHECK, so the gallery can grow without a migration.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_id TEXT;
+
+-- Usernames (src/services/nickname.ts). Unique without regard to case, so
+-- "Gal" and "gal" cannot both exist; the name is stored as typed. The index
+-- is on lower(nickname), which for the allowed characters (English and
+-- Hebrew letters, digits, "_", ".") matches the server's nicknameKey().
+-- Players who have not chosen one are null, and nulls never collide.
+-- nickname_changed_at is when it was last set: one change every 30 days.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname_changed_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS users_nickname_lower_key ON users (lower(nickname));
+
+-- A username given up is held for its previous owner for 30 days, so nobody
+-- else can take it straight away and pose as them. One row per name (its
+-- lower-cased key); giving it up again later just moves released_at.
+CREATE TABLE IF NOT EXISTS nickname_holds (
+  nickname_key  TEXT PRIMARY KEY,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  released_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- Portfolio status. Active or closed only: "archived" is named in the spec but
 -- not defined. Every existing portfolio is active, and there is no way to
@@ -212,6 +230,11 @@ BEGIN
   -- matching FIRST_NAME_MAX_LENGTH in src/services/playerProfile.ts.
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_first_name_length') THEN
     ALTER TABLE users ADD CONSTRAINT users_first_name_length CHECK (char_length(first_name) <= 50);
+  END IF;
+
+  -- NICKNAME_MIN_LENGTH / NICKNAME_MAX_LENGTH in src/services/nickname.ts.
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_nickname_length') THEN
+    ALTER TABLE users ADD CONSTRAINT users_nickname_length CHECK (char_length(nickname) BETWEEN 3 AND 20);
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'portfolios_status_valid') THEN
