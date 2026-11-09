@@ -129,6 +129,8 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | Method | Path | |
 |---|---|---|
 | GET | `/portfolios` | Your portfolios, valued, with cash. |
+| GET | `/portfolios/:id/allocation` | The composition now (spec Module 1): Top 5 + Other + Cash slices totalling 100%, every holding with its exposure, first-added date, weighted average buy price, current price, gain since inclusion and sector, and the capital summary (starting capital, return, capital earned from rewards). Owner only. |
+| GET | `/portfolios/:id/composition` | The composition before and after every action, newest first, with each action's kind (added / increased / reduced / removed), price and rationale (Portfolio History; Module 2 View B). Owner only. |
 | GET | `/portfolios/:id/history` | Your portfolio's value on every calendar date since it opened, rebuilt from its trades, capital rewards and daily closes, with the genuine performance index (capital rewards stripped out), and whether the record matches the live portfolio and how far it is final. Owner only. |
 | POST | `/portfolios` | Open a new portfolio, up to the account's limit. |
 

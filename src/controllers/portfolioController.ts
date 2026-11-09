@@ -83,6 +83,15 @@ export const publicPortfolio = (full: ReturnType<typeof valuePortfolio>) => ({
   created_at: full.created_at,
 });
 
+const SPARKLINE_POINTS = 60;
+
+// Evenly spaced points from a series, always keeping the last one.
+export const thin = (values: number[], max: number): number[] => {
+  if (values.length <= max) return values;
+  const step = (values.length - 1) / (max - 1);
+  return Array.from({ length: max }, (_, i) => values[Math.round(i * step)]);
+};
+
 // GET /portfolios
 // Every portfolio the caller owns, valued, newest last. This is what fills the
 // switcher in the personal area.
@@ -90,9 +99,10 @@ export const listPortfolios: RequestHandler = async (req, res, next) => {
   const userId = (req as any).user.id;
   try {
     const result = await pool.query(
-      `SELECT p.id, p.name, p.starting_balance, COALESCE(p.capital_base, p.starting_balance) AS capital_base, p.cash, p.created_at,
+      `SELECT p.id, p.name, p.status, p.starting_balance, COALESCE(p.capital_base, p.starting_balance) AS capital_base, p.cash, p.created_at,
               COALESCE(v.positions_value, 0) AS positions_value,
-              COALESCE(v.holdings_count, 0)  AS holdings_count
+              COALESCE(v.holdings_count, 0)  AS holdings_count,
+              GREATEST(p.created_at, (SELECT MAX(t.created_at) FROM trade_notes t WHERE t.portfolio_id = p.id)) AS last_updated
        FROM portfolios p
        LEFT JOIN (${POSITION_VALUES}) v ON v.portfolio_id = p.id
        WHERE p.user_id = $1
@@ -100,8 +110,28 @@ export const listPortfolios: RequestHandler = async (req, res, next) => {
       [userId]
     );
 
+    // The carousel's sparkline: each portfolio's genuine performance index
+    // (src/performance), thinned to at most SPARKLINE_POINTS, ending on the
+    // latest value. Empty until the valuation job has run.
+    const ids = result.rows.map((r) => r.id);
+    const series = ids.length
+      ? await pool.query(
+          `SELECT portfolio_id, perf_index FROM portfolio_daily_values
+           WHERE portfolio_id = ANY($1::int[]) AND perf_index IS NOT NULL
+           ORDER BY portfolio_id, date`,
+          [ids]
+        )
+      : { rows: [] as any[] };
+    const byPortfolio = new Map<number, number[]>();
+    for (const r of series.rows) byPortfolio.set(r.portfolio_id, [...(byPortfolio.get(r.portfolio_id) ?? []), Number(r.perf_index)]);
+
     res.json({
-      portfolios: result.rows.map(valuePortfolio),
+      portfolios: result.rows.map((row) => ({
+        ...valuePortfolio(row),
+        status: row.status,
+        last_updated: row.last_updated,
+        sparkline: thin(byPortfolio.get(row.id) ?? [], SPARKLINE_POINTS),
+      })),
       limit: portfolioLimitFor(userId),
       starting_cash: STARTING_CASH,
     });

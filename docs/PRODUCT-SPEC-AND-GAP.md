@@ -2302,3 +2302,29 @@ which was never stored. It is now rebuilt from the record
 (corporate actions), total- vs price-return benchmark, and the exact
 calendar alignment between Israel dates and US sessions (today: a date's
 value uses the US close of that same date, which is final at 23:00 Israel).
+
+## Portfolio Dashboard, part 1: carousel and allocation (2026-11-09)
+
+From Part 1 (Modules 1 and the carousel), on top of the portfolio history.
+
+- **Carousel**: `GET /portfolios` now also gives each portfolio its status,
+  last updated (latest action, else the opening) and a sparkline of the
+  genuine performance index (at most 60 points). Age is shown in days.
+  Not yet on the card: **Risk Level** (comes with Module 3) and
+  **Category / Style** (open ruling 9: player-chosen or derived).
+- **Allocation** (`GET /portfolios/:id/allocation`): Top 5 + Other + Cash
+  (was Top 6), current exposure including cash, always 100%. Holding panel:
+  exactly the spec's six fields in order. Expanded dashboard: starting
+  capital, capital gain/loss as a percentage (never profit in dollars),
+  capital earned from rewards, every holding.
+- **Portfolio History** (`GET /portfolios/:id/composition`,
+  `src/performance/composition.ts`): the weights before and after every
+  action, the kind of change, price and rationale; shown as the spec's
+  matrix (newest on the left in both languages; same-day actions are
+  separate columns by time) and as a list. At an action, the traded symbol
+  is valued at the trade price and the others at their close that day.
+- **Decided by Gal 2026-11-09:** keep the 60-second undo of a buy (the
+  immutability of a published rationale applies from second 61).
+- **Sector** still comes from the client at purchase time
+  (`watchlist.industry`); a security master is still a gap.
+- Owner only: what others may see depends on subscriptions, not built.
