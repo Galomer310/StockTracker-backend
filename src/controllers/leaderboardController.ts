@@ -70,7 +70,7 @@ const loadPortfolioForViewer = async (
   res: any
 ) => {
   const result = await pool.query(
-    `SELECT p.id, p.name, p.starting_balance, p.cash, p.created_at,
+    `SELECT p.id, p.name, p.starting_balance, COALESCE(p.capital_base, p.starting_balance) AS capital_base, p.cash, p.created_at,
             p.user_id, u.display_name, u.avatar_id,
             COALESCE(v.positions_value, 0) AS positions_value,
             COALESCE(v.holdings_count, 0)  AS holdings_count
@@ -106,7 +106,7 @@ export const getLeaderboard: RequestHandler = async (req, res, next) => {
   const viewerId = (req as any).user.id;
   try {
     const result = await pool.query(
-      `SELECT p.id, p.name, p.starting_balance, p.cash, p.created_at,
+      `SELECT p.id, p.name, p.starting_balance, COALESCE(p.capital_base, p.starting_balance) AS capital_base, p.cash, p.created_at,
               p.user_id, u.display_name, u.avatar_id,
               COALESCE(v.positions_value, 0) AS positions_value,
               COALESCE(v.holdings_count, 0)  AS holdings_count

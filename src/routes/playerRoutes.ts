@@ -14,6 +14,13 @@ import {
   getMyFollowing,
   unfollowPlayer,
 } from "../controllers/followController";
+import {
+  getDailyRewards,
+  getHistory,
+  postAcknowledge,
+  postCheckIn,
+  postRedeem,
+} from "../controllers/dailyRewardsController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { socialLimiter } from "../middleware/rateLimiter";       // Per-user limit
 
@@ -45,6 +52,13 @@ router.get("/me/progression/notifications", getMyNotifications);
 router.post("/me/progression/acknowledge", acknowledgeMyNotifications);
 
 // Following: your own lists, and following or unfollowing another player
+// Daily rewards: login streak, daily XP and capital growth (src/rewards)
+router.get("/me/daily-rewards", getDailyRewards);
+router.post("/me/daily-rewards/check-in", postCheckIn);
+router.post("/me/daily-rewards/acknowledge", postAcknowledge);
+router.get("/me/daily-rewards/history", getHistory);
+router.post("/me/daily-rewards/:rewardId/redeem", postRedeem);
+
 router.get("/me/following", getMyFollowing);
 router.get("/me/followers", getMyFollowers);
 router.get("/:id/follow", getFollowState);

@@ -1,0 +1,29 @@
+{
+  "_comment": "Capital growth messages (Daily Rewards spec v1.0, section 13), verbatim. Seeded insert-only by src/db/migrate.js into capital_messages: edit or disable a message there; add new ones here with a new id.",
+  "messages": [
+    { "id": "01", "en": "Wealth is built step by step.", "he": "הון נבנה צעד אחר צעד." },
+    { "id": "02", "en": "Small steps repeated over time can lead to meaningful growth.", "he": "צעדים קטנים שחוזרים לאורך זמן יכולים להוביל לצמיחה משמעותית." },
+    { "id": "03", "en": "Compounding rewards patience and time.", "he": "אפקט הריבית דריבית ממחיש את כוחם של הזמן והסבלנות." },
+    { "id": "04", "en": "Financial discipline is a foundation for long-term growth.", "he": "משמעת פיננסית היא בסיס לצמיחה ארוכת טווח." },
+    { "id": "05", "en": "Consistency builds capital.", "he": "עקביות בונה הון." },
+    { "id": "06", "en": "Saving and investing work better together.", "he": "חיסכון והשקעה משלימים זה את זה." },
+    { "id": "07", "en": "Strong portfolios begin with strong habits.", "he": "תיקים חזקים מתחילים בהרגלים טובים." },
+    { "id": "08", "en": "Time is one of an investor’s most valuable resources.", "he": "זמן הוא אחד המשאבים היקרים ביותר של משקיע." },
+    { "id": "09", "en": "Capital grows when discipline meets time.", "he": "הון צומח כשהמשמעת פוגשת את הזמן." },
+    { "id": "10", "en": "Financial stability is built through consistent progress.", "he": "יציבות כלכלית נבנית באמצעות התקדמות עקבית." },
+    { "id": "11", "en": "The power of compounding becomes clearer over time.", "he": "כוחה של הריבית דריבית מתגלה לאורך זמן." },
+    { "id": "12", "en": "Building wealth is a marathon, not a sprint.", "he": "בניית הון היא מרתון, לא ספרינט." },
+    { "id": "13", "en": "Every milestone strengthens your financial foundation.", "he": "כל אבן דרך מחזקת את הבסיס הכלכלי שלך." },
+    { "id": "14", "en": "Investment returns matter. So does building capital.", "he": "תשואות חשובות, אבל גם צבירת הון." },
+    { "id": "15", "en": "Patience, discipline, and time are powerful allies.", "he": "סבלנות, משמעת וזמן הם שילוב רב־עוצמה." },
+    { "id": "16", "en": "Long-term progress begins with daily consistency.", "he": "התקדמות ארוכת טווח מתחילה בעקביות יומיומית." },
+    { "id": "17", "en": "Capital accumulation is part of every investor’s journey.", "he": "צבירת הון היא חלק מהמסע של כל משקיע." },
+    { "id": "18", "en": "Smart habits today can strengthen your financial future.", "he": "הרגלים חכמים היום יכולים לחזק את עתידך הכלכלי." },
+    { "id": "19", "en": "A solid foundation creates room for future opportunities.", "he": "בסיס יציב יוצר מקום להזדמנויות חדשות." },
+    { "id": "20", "en": "Progress is measured over time, not in a single day.", "he": "התקדמות נמדדת לאורך זמן, לא ביום אחד." },
+    { "id": "21", "en": "You do not need to rush to move forward.", "he": "לא צריך למהר כדי להתקדם." },
+    { "id": "22", "en": "Discipline gives your financial goals direction.", "he": "משמעת מעניקה כיוון למטרות הכלכליות שלך." },
+    { "id": "23", "en": "Investing is a journey of learning and building.", "he": "השקעה היא מסע של למידה ובנייה." },
+    { "id": "24", "en": "Lasting progress is built one decision at a time.", "he": "התקדמות יציבה נבנית החלטה אחר החלטה." }
+  ]
+}

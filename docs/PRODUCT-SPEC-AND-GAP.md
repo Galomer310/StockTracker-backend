@@ -2201,3 +2201,56 @@ and added Hebrew:
 Not yet: showing the username in the feed, leaderboard and other lists
 (they still show the display name), @mentions, and a username step at
 registration.
+
+## Daily rewards, streaks and capital growth (built 2026-11-09)
+
+From Gal's "Daily Rewards, Login Streaks & Capital Growth System" v1.0.
+Rules in `src/rewards/schedule.ts` (pure, tested against every table in
+the spec), database side in `src/rewards/service.ts`.
+
+**As specified:** 50 XP a day, replaced by 75 every 7th, 150 every 30th,
+250 every 150th day of a streak (highest only). Capital growth 1% every 7th,
+3% every 30th, 5% every 90th day (highest only), as a pending reward the
+player applies to ONE portfolio of their choice, now or later, never
+expiring. XP goes through the central ledger (`xp_transactions`, source
+`daily_login`, key `daily_login:<user>:<date>`), so levels, level-ups and
+title ceremonies follow as for achievements. 24 motivational messages
+(`src/rewards/messages.json`, seeded insert-only into `capital_messages`),
+rotated per player without repeats until all are used, never back to back;
+the chosen message is stored on the reward. All amounts and the time zone
+are rows in `progression_settings` (`daily_login_xp`, `capital_growth`,
+`rewards_timezone`).
+
+**Decided while building (flag if wrong):**
+
+- **What counts as a login.** Sessions last for weeks, so "logging in" is
+  rare. A day counts when a signed-in player OPENS the app (on load, when
+  the tab returns to view, and every 30 minutes while open).
+- **Whose calendar.** One zone for everyone, Asia/Jerusalem (as for the
+  Player Card's months), decided on the server. No per-player zone, so
+  neither the device clock nor a zone change can earn a day twice. DST is
+  handled by Intl; consecutive dates are counted in calendar days.
+- **How capital is added.** Holdings are whole shares bought in separate
+  lots, each with its own price, so positions cannot all be scaled by 1%.
+  The reward is added to the portfolio's CASH (r x value) and a new
+  `portfolios.capital_base` (null = the starting_balance) grows by the same
+  factor; the return is now measured against capital_base. So the return
+  is exactly unchanged and the added money is never profit (profit = value
+  - capital_base). Trade-off: the share held in cash rises a little; the
+  positions themselves are untouched. The spec allows this ("If the
+  portfolio uses integer shares... use an appropriate capital-adjustment
+  mechanism"). `starting_balance` stays $10,000 on record.
+- **Valuation.** The same as every screen: cached previous close, or the
+  price paid where a symbol has none. Recorded with `valued_at` and
+  `prices_as_of` (oldest price used) in `capital_adjustments`.
+- **Eligible portfolio.** Owned, status active, value above zero.
+  Otherwise the reward stays pending.
+- **Existing players** start their streak from their first visit after
+  deploy; there is no login history to backfill.
+
+**Not done / for later:** the performance charts plot holdings only, not
+cash, so a boost never shows as a gain there; no change was needed. The
+metric engine's flow-adjusted returns would need `capital_adjustments` as
+flows once NAV history exists. Competitions on absolute profit will need
+to normalise for capital rewards; `capital_adjustments` keeps what they
+need.

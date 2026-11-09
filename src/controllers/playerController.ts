@@ -23,7 +23,7 @@ export const getMyPlayerCard: RequestHandler = async (req, res, next) => {
     const [user, portfolios] = await Promise.all([
       pool.query("SELECT nickname, nickname_changed_at, first_name, avatar_url, avatar_id, bio FROM users WHERE id = $1", [userId]),
       pool.query(
-        `SELECT p.id, p.name, p.status, p.starting_balance, p.cash, p.created_at,
+        `SELECT p.id, p.name, p.status, p.starting_balance, COALESCE(p.capital_base, p.starting_balance) AS capital_base, p.cash, p.created_at,
                 COALESCE(v.positions_value, 0) AS positions_value,
                 COALESCE(v.holdings_count, 0)  AS holdings_count
          FROM portfolios p

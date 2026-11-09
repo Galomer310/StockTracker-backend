@@ -415,3 +415,108 @@ CREATE TABLE IF NOT EXISTS follows (
   CHECK (follower_id <> followee_id)
 );
 CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee_id, created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- Daily rewards: login streaks, daily XP and capital growth (2026-11-09)
+-- ---------------------------------------------------------------------------
+-- Rules in src/rewards/schedule.ts; the database side in src/rewards/service.ts.
+
+-- What a portfolio's return is measured against. Null until its first
+-- capital growth reward, which means "the starting_balance it opened with";
+-- every valuation reads COALESCE(capital_base, starting_balance). A reward
+-- adds cash and grows this base by the same factor, so the return is
+-- unchanged and added capital never counts as profit. starting_balance stays
+-- the original $10,000 for the record.
+ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS capital_base NUMERIC(14,4);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'portfolios_capital_base_positive') THEN
+    ALTER TABLE portfolios ADD CONSTRAINT portfolios_capital_base_positive CHECK (capital_base IS NULL OR capital_base > 0);
+  END IF;
+END $$;
+
+-- The amounts, as configuration. Edit these rows to change the economy.
+INSERT INTO progression_settings (key, value) VALUES
+  ('rewards_timezone', '"Asia/Jerusalem"'),
+  ('daily_login_xp', '{"base": 50, "milestones": [{"every": 7, "xp": 75}, {"every": 30, "xp": 150}, {"every": 150, "xp": 250}]}'),
+  ('capital_growth', '{"milestones": [{"every": 7, "pct": 1, "tier": "weekly"}, {"every": 30, "pct": 3, "tier": "monthly"}, {"every": 90, "pct": 5, "tier": "quarterly"}]}')
+ON CONFLICT (key) DO NOTHING;
+
+-- One row per player: the streak as of their last counted login date.
+CREATE TABLE IF NOT EXISTS daily_login_state (
+  user_id           INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  current_streak    INTEGER NOT NULL DEFAULT 0 CHECK (current_streak >= 0),
+  last_login_date   DATE,
+  total_login_days  INTEGER NOT NULL DEFAULT 0 CHECK (total_login_days >= 0),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Every counted login date: its streak day and the XP it paid (the XP itself
+-- is in xp_transactions as source_type 'daily_login', key
+-- daily_login:<user>:<date>). The primary key makes a date count once.
+-- seen_at: when the player saw that day's reward notice.
+CREATE TABLE IF NOT EXISTS daily_logins (
+  user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  login_date         DATE NOT NULL,
+  streak_day         INTEGER NOT NULL CHECK (streak_day >= 1),
+  xp_amount          INTEGER NOT NULL,
+  xp_transaction_id  INTEGER REFERENCES xp_transactions(id) ON DELETE SET NULL,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  seen_at            TIMESTAMPTZ,
+  PRIMARY KEY (user_id, login_date)
+);
+
+-- The motivational messages (src/rewards/messages.json, seeded insert-only).
+CREATE TABLE IF NOT EXISTS capital_messages (
+  id          TEXT PRIMARY KEY,
+  text_en     TEXT NOT NULL,
+  text_he     TEXT NOT NULL,
+  is_enabled  BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order  INTEGER NOT NULL DEFAULT 0
+);
+
+-- Capital growth rewards. One per player per login date at most. The
+-- percentage is fixed when earned; the money is worked out when redeemed,
+-- into one portfolio the player picks. Never expires.
+CREATE TABLE IF NOT EXISTS capital_rewards (
+  id               SERIAL PRIMARY KEY,
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  login_date       DATE NOT NULL,
+  streak_day       INTEGER NOT NULL,
+  percentage       NUMERIC(6,3) NOT NULL CHECK (percentage > 0),
+  tier             TEXT NOT NULL,
+  earned_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'redeemed')),
+  message_id       TEXT REFERENCES capital_messages(id),
+  message_cycle    INTEGER,
+  portfolio_id     INTEGER REFERENCES portfolios(id) ON DELETE SET NULL,
+  redeemed_at      TIMESTAMPTZ,
+  value_before     NUMERIC(14,4),
+  value_after      NUMERIC(14,4),
+  base_before      NUMERIC(14,4),
+  base_after       NUMERIC(14,4),
+  capital_added    NUMERIC(14,4),
+  UNIQUE (user_id, login_date)
+);
+CREATE INDEX IF NOT EXISTS idx_capital_rewards_user ON capital_rewards(user_id, earned_at);
+
+-- The portfolio's own audit trail: every capital adjustment, separate from
+-- trades. One per redeemed reward.
+CREATE TABLE IF NOT EXISTS capital_adjustments (
+  id                 SERIAL PRIMARY KEY,
+  user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  portfolio_id       INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+  reward_id          INTEGER NOT NULL UNIQUE REFERENCES capital_rewards(id) ON DELETE CASCADE,
+  adjustment_type    TEXT NOT NULL DEFAULT 'capital_boost',
+  percentage         NUMERIC(6,3) NOT NULL,
+  valued_at          TIMESTAMPTZ NOT NULL,
+  prices_as_of       TIMESTAMPTZ,
+  cash_before        NUMERIC(14,4) NOT NULL,
+  cash_after         NUMERIC(14,4) NOT NULL,
+  value_before       NUMERIC(14,4) NOT NULL,
+  value_after        NUMERIC(14,4) NOT NULL,
+  base_before        NUMERIC(14,4) NOT NULL,
+  base_after         NUMERIC(14,4) NOT NULL,
+  applied_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_capital_adjustments_portfolio ON capital_adjustments(portfolio_id, applied_at);
