@@ -197,11 +197,12 @@ export interface Bar {
   v: number;
 }
 
-// Daily aggregates over a date range, oldest first.
-const dailyAggregates = async (symbol: string, fromMs: number, toMs: number): Promise<Bar[]> => {
+// Daily aggregates over a date range, oldest first. Split-adjusted unless
+// asked otherwise (see fetchUnadjustedCloses).
+const dailyAggregates = async (symbol: string, fromMs: number, toMs: number, adjusted = true): Promise<Bar[]> => {
   const data = await request(
     `/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/1/day/${isoDay(fromMs)}/${isoDay(toMs)}`,
-    { adjusted: "true", sort: "asc", limit: "50000" }
+    { adjusted: adjusted ? "true" : "false", sort: "asc", limit: "50000" }
   );
   const results = Array.isArray(data?.results) ? data.results : [];
   return results.map((bar: any) => ({
@@ -259,6 +260,19 @@ export const fetchDailyBars = async (symbol: string, days: number): Promise<Bar[
   const bars = await dailyAggregates(symbol, now - span * DAY_MS, now);
   if (bars.length === 0) throw new UpstreamDataError(`No daily series returned for ${symbol}`);
   return bars;
+};
+
+// Daily closes between two dates (inclusive, "YYYY-MM-DD"), NOT adjusted for
+// splits, for rebuilding portfolio history (src/performance): holdings are
+// never split-adjusted, so their past value needs the price as it was then.
+// An empty result is not an error here: a range can hold no sessions.
+export const fetchUnadjustedCloses = async (
+  symbol: string,
+  from: string,
+  to: string
+): Promise<{ date: string; close: number }[]> => {
+  const bars = await dailyAggregates(symbol, Date.parse(`${from}T00:00:00Z`), Date.parse(`${to}T00:00:00Z`), false);
+  return bars.filter((b) => b.c > 0).map((b) => ({ date: isoDay(b.t), close: b.c }));
 };
 
 // Intraday bars for a "last day" view.

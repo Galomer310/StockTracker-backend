@@ -2254,3 +2254,51 @@ metric engine's flow-adjusted returns would need `capital_adjustments` as
 flows once NAV history exists. Competitions on absolute profit will need
 to normalise for capital rewards; `capital_adjustments` keeps what they
 need.
+
+## Professional achievements and medals (spec v1.0, 2026-11-09)
+
+Gal's 54-page "Professional Achievements & Premium Medal System" spec.
+**Decided by Gal 2026-11-09:** (1) the S&P 500 benchmark is the SPY fund as
+a stand-in (index data is not on the current Massive plan), price return,
+provisional, stored as the `benchmark` setting so it can switch to I:SPX
+later; (2) professional achievements are recorded now WITHOUT XP; once Gal
+sets the amounts in settings, the XP is granted retroactively, once each;
+(3) built in stages, merged between: S1 portfolio history, S2 Beat the
+Market + Portfolio Return + Green Months with their medals and the Player
+Card medal display, S3 Risk & Discipline + Phoenix, S4 Rare achievements and
+special medals, S5 index comparison. Competitions and Investor Legacy get
+dormant foundations only (no competitions system exists yet).
+
+### Stage 1: portfolio history (built 2026-11-09)
+
+Every professional achievement is measured on a portfolio's daily history,
+which was never stored. It is now rebuilt from the record
+(`src/performance/history.ts`, pure; `service.ts`, database):
+
+- **Value per calendar date** = cash (opening balance - buys + sells +
+  capital added, to the cent like the trade code) + shares x the last close
+  on or before that date (weekends and holidays keep the previous close).
+- **Trades are dated by execution (`created_at`)**, not by the date the
+  player wrote (`occurred_at`, which can be backdated): every trade executes
+  at the current price, so a backdated buy would invent a return.
+- **Genuine performance index**: 1 at opening, moved only by investing;
+  capital growth rewards are external flows at the end of their day, so
+  they never count as return (spec 30, 31).
+- **Integrity**: the rebuilt last day must match the live cash and shares;
+  if not, `portfolio_history_status.consistent` is false with the reason,
+  and nothing may be awarded from that history.
+- **Finality**: a day is final once it is over and every symbol held THAT
+  day has its closes complete through it. A holding with no close yet is
+  valued at its trade price (as every screen does) and the day is marked
+  `estimated`, never final.
+- **Market data**: closes are kept in `daily_prices` for good (the old cache
+  was in memory), UNADJUSTED for splits because holdings are never adjusted.
+  `price_coverage` records how far each symbol is complete. The job
+  (`VALUATION_HOURS`, default 6) fetches only missing sessions: normally
+  one request per held symbol plus the benchmark per day; the first run
+  fetches two years per symbol, paced by the 5-a-minute limit.
+
+**Still open (not decided, not invented):** splits and dividends
+(corporate actions), total- vs price-return benchmark, and the exact
+calendar alignment between Israel dates and US sessions (today: a date's
+value uses the US close of that same date, which is final at 23:00 Israel).

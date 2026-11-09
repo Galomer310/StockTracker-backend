@@ -520,3 +520,63 @@ CREATE TABLE IF NOT EXISTS capital_adjustments (
   applied_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_capital_adjustments_portfolio ON capital_adjustments(portfolio_id, applied_at);
+
+-- ---------------------------------------------------------------------------
+-- Portfolio history and market data (professional achievements, stage 1)
+-- ---------------------------------------------------------------------------
+-- How it is built: src/performance/history.ts; filled by src/performance/service.ts.
+
+-- The benchmark for Beat the Market. Decided by Gal 2026-11-09: the SPY fund
+-- stands in for the S&P 500 (index data is not on the current Massive plan),
+-- price return, provisional. Change the symbol here to switch, e.g. to I:SPX
+-- on an indices plan.
+INSERT INTO progression_settings (key, value) VALUES
+  ('benchmark', '{"symbol": "SPY", "name": "S&P 500", "source": "etf_proxy", "return_type": "price", "provisional": true}')
+ON CONFLICT (key) DO NOTHING;
+
+-- Daily closes, kept for good rather than in memory. Unadjusted for splits,
+-- like the holdings they value. One row per symbol per US trading date.
+CREATE TABLE IF NOT EXISTS daily_prices (
+  symbol  TEXT NOT NULL,
+  date    DATE NOT NULL,
+  close   NUMERIC(14,4) NOT NULL CHECK (close > 0),
+  PRIMARY KEY (symbol, date)
+);
+
+-- How far each symbol's closes are known to be complete: every session up
+-- to checked_through is in daily_prices (or there was none). A day after it
+-- is not final yet.
+CREATE TABLE IF NOT EXISTS price_coverage (
+  symbol           TEXT PRIMARY KEY,
+  checked_through  DATE NOT NULL,
+  fetched_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_error       TEXT
+);
+
+-- Each portfolio's value on every calendar date since it opened, rebuilt
+-- from its trades, capital rewards and closes. perf_index is the genuine
+-- performance (1 at opening, capital rewards stripped out); null once the
+-- value is not positive. estimated: a holding was valued at a trade price
+-- because it had no close yet.
+CREATE TABLE IF NOT EXISTS portfolio_daily_values (
+  portfolio_id     INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+  date             DATE NOT NULL,
+  cash             NUMERIC(16,4) NOT NULL,
+  positions_value  NUMERIC(16,4) NOT NULL,
+  nav              NUMERIC(16,4) NOT NULL,
+  external_flow    NUMERIC(14,4) NOT NULL DEFAULT 0,
+  perf_index       NUMERIC(24,12),
+  estimated        BOOLEAN NOT NULL DEFAULT FALSE,
+  PRIMARY KEY (portfolio_id, date)
+);
+
+-- Per portfolio: whether the rebuilt record ends where the live portfolio
+-- is (if not, nothing is awarded from it, and reason says why), and the
+-- last date whose value is final.
+CREATE TABLE IF NOT EXISTS portfolio_history_status (
+  portfolio_id   INTEGER PRIMARY KEY REFERENCES portfolios(id) ON DELETE CASCADE,
+  consistent     BOOLEAN NOT NULL,
+  reason         TEXT,
+  final_through  DATE,
+  rebuilt_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
