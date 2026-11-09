@@ -129,6 +129,7 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | Method | Path | |
 |---|---|---|
 | GET | `/portfolios` | Your portfolios, valued, with cash. |
+| GET | `/portfolios/:id/history` | Your portfolio's value on every calendar date since it opened, rebuilt from its trades, capital rewards and daily closes, with the genuine performance index (capital rewards stripped out), and whether the record matches the live portfolio and how far it is final. Owner only. |
 | POST | `/portfolios` | Open a new portfolio, up to the account's limit. |
 
 ### Holdings and trades — `/watchlist`

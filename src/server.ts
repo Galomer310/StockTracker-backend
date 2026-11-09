@@ -12,6 +12,7 @@ import playerRoutes from "./routes/playerRoutes"; // Import the Player Card rout
 import { corsOptions, getAllowedOrigins } from "./config/cors"; // Origin allowlist + exposed headers
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler"; // JSON errors
 import { sweepAll } from "./progression/service"; // Time-based achievements
+import { runValuationJob } from "./performance/service"; // Daily closes and portfolio history
 
 dotenv.config();                               // Load environment variables from .env file
 
@@ -132,4 +133,16 @@ if (SWEEP_HOURS > 0) {
     sweepAll().catch((error) => console.error("[progression] sweep failed:", error));
   setTimeout(sweep, 60_000).unref();
   setInterval(sweep, SWEEP_HOURS * 60 * 60 * 1000).unref();
+}
+
+// Daily closes and each portfolio's rebuilt history (src/performance), which
+// professional achievements are measured on. Two minutes after boot, then
+// every VALUATION_HOURS (default 6; 0 turns it off). It fetches only closes
+// that are missing, so most runs cost one request per held symbol at most.
+const VALUATION_HOURS = Number(process.env.VALUATION_HOURS ?? 6);
+if (VALUATION_HOURS > 0 && VALUATION_HOURS < 500) {
+  const value = () =>
+    runValuationJob().catch((error) => console.error("[valuation] run failed:", error));
+  setTimeout(value, 120_000).unref();
+  setInterval(value, VALUATION_HOURS * 60 * 60 * 1000).unref();
 }
