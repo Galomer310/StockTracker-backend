@@ -3,6 +3,7 @@ import { listPortfolios, createPortfolio } from "../controllers/portfolioControl
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { watchlistLimiter } from "../middleware/rateLimiter";    // Per-user limit
 import { portfolioHistory } from "../performance/service";       // Rebuilt daily values
+import { getAllocation, getComposition } from "../controllers/portfolioDashboardController";
 
 const router = express.Router();               // Create a new router instance
 
@@ -15,6 +16,12 @@ router.get("/", listPortfolios);
 
 // POST /portfolios - open a new one, up to the account's limit
 router.post("/", createPortfolio);
+
+// GET /portfolios/:id/allocation - holdings, exposures and capital (owner)
+router.get("/:id/allocation", getAllocation);
+
+// GET /portfolios/:id/composition - the composition at every change (owner)
+router.get("/:id/composition", getComposition);
 
 // GET /portfolios/:id/history - the owner's portfolio value on every date
 // since it opened, rebuilt from its record (src/performance). Contains money,
