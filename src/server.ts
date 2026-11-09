@@ -13,6 +13,8 @@ import { corsOptions, getAllowedOrigins } from "./config/cors"; // Origin allowl
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler"; // JSON errors
 import { sweepAll } from "./progression/service"; // Time-based achievements
 import { runValuationJob } from "./performance/service"; // Daily closes and portfolio history
+import testToolsRoutes from "./routes/testToolsRoutes";   // The test player's panel
+import { syncTesterFlags, testerEmails } from "./testTools/service";
 
 dotenv.config();                               // Load environment variables from .env file
 
@@ -108,6 +110,7 @@ app.use("/watchlist", watchlistRoutes);        // Routes for managing watchlist 
 app.use("/social", socialRoutes);              // Leaderboard and viewing other users' portfolios
 app.use("/feed", feedRoutes);                  // Shared timeline of everyone's trades
 app.use("/players", playerRoutes);             // Player Card
+app.use("/test-tools", testToolsRoutes);       // Test account only (TEST_PLAYER_EMAILS)
 
 // Error handling. These must come after all routes: Express selects the first
 // matching handler, so a 404 registered earlier would swallow real routes, and
@@ -146,3 +149,9 @@ if (VALUATION_HOURS > 0 && VALUATION_HOURS < 500) {
   setTimeout(value, 120_000).unref();
   setInterval(value, VALUATION_HOURS * 60 * 60 * 1000).unref();
 }
+
+// Mark the test accounts named in TEST_PLAYER_EMAILS (and unmark any no
+// longer named), so they are hidden from other players' leaderboard and feed.
+syncTesterFlags()
+  .then((changed) => console.log(`[test-tools] ${testerEmails().length} test account(s) configured, ${changed} flag(s) updated`))
+  .catch((error) => console.error("[test-tools] could not mark test accounts:", error));

@@ -226,3 +226,28 @@ against the production database after any schema change.
 ## Contact
 
 For questions or feedback: [galomer6708@gmail.com](mailto:galomer6708@gmail.com)
+
+## Test player
+
+One dedicated account can jump through the game from a test panel
+(`/test-tools` in the app): streak days, XP and levels, title ceremonies,
+achievement notices, the username lock, the valuation job, and two resets.
+
+- Set `TEST_PLAYER_EMAILS` on the server to that account's email (comma
+  separated for more than one) and restart. The account is marked at start
+  (`users.is_tester`), or on its first use of a tool.
+- Every `/test-tools` route answers **404** to anyone else (not 403: the
+  client reads 403 as an expired token and signs the player out).
+- The test account is hidden from other players' leaderboard and feed.
+- Test XP is recorded with `source_type = 'test'`. "Reset progress" clears
+  XP, levels, titles, achievements, the streak and capital rewards (taking
+  the added cash back out); "Reset to a new player" also clears the profile,
+  username and portfolios.
+
+| Method | Path | |
+|---|---|---|
+| GET | `/test-tools/state` | The account's streak, XP, level, achievements, username lock, portfolios. |
+| POST | `/test-tools/daily/next-day`, `/daily/miss-day`, `/daily/jump` `{ day }` | Move the account's calendar and check in through the real code. |
+| POST | `/test-tools/xp/add` `{ amount }`, `/xp/level` `{ level }`, `/titles/replay-ceremonies` | XP, levels and title ceremonies. |
+| POST | `/test-tools/achievements/replay-notices`, `/achievements/reset` | Achievement notices. |
+| POST | `/test-tools/limits/reset-username-lock`, `/limits/run-valuation`, `/reset/progress`, `/reset/new-player` | Limits and resets. |
