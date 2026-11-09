@@ -2,7 +2,7 @@ import express from "express";                 // Import express
 import { listPortfolios, createPortfolio } from "../controllers/portfolioController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { watchlistLimiter } from "../middleware/rateLimiter";    // Per-user limit
-import { portfolioHistory } from "../performance/service";       // Rebuilt daily values
+import { portfolioHistory, portfolioInsights } from "../performance/service"; // Rebuilt daily values, Module 5
 import { getAllocation, getComposition } from "../controllers/portfolioDashboardController";
 
 const router = express.Router();               // Create a new router instance
@@ -39,6 +39,27 @@ router.get("/:id/history", async (req, res, next) => {
       return;
     }
     res.json(history);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /portfolios/:id/insights - Module 5, Performance Insights: returns,
+// months, drawdown, best and worst days, and the same-dates comparison with
+// the S&P 500 and NASDAQ-100 stand-ins. The owner's own portfolio only.
+router.get("/:id/insights", async (req, res, next) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid portfolio id" });
+    return;
+  }
+  try {
+    const insights = await portfolioInsights(id, (req as any).user.id);
+    if (!insights) {
+      res.status(404).json({ error: "Portfolio not found" });
+      return;
+    }
+    res.json(insights);
   } catch (error) {
     next(error);
   }

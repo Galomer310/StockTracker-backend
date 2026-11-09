@@ -133,6 +133,7 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | GET | `/portfolios/:id/composition` | The composition before and after every action, newest first, with each action's kind (added / increased / reduced / removed), price, rationale and follow-ups (Portfolio History; Module 2). Owner only. |
 | POST | `/feed/:id/followups` | `{ body }`: the trade's author adds a dated follow-up to its rationale (at most 2,000 characters). The original is never rewritten. Anyone else's trade answers 404. Follow-ups are also in `GET /feed`. |
 | GET | `/portfolios/:id/history` | Your portfolio's value on every calendar date since it opened, rebuilt from its trades, capital rewards and daily closes, with the genuine performance index (capital rewards stripped out), and whether the record matches the live portfolio and how far it is final. Owner only. |
+| GET | `/portfolios/:id/insights` | Performance Insights (spec Module 5): total return, average / best / worst month, positive months, max drawdown, max daily gain and loss with dates, age, and the return and excess return against the S&P 500 (SPY) and NASDAQ-100 (QQQ) over exactly the same dates, with a chart series rebased to 100. Measured on the performance index, trading sessions only. Owner only. |
 | POST | `/portfolios` | Open a new portfolio, up to the account's limit. |
 
 ### Holdings and trades — `/watchlist`

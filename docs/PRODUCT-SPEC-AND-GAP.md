@@ -2361,3 +2361,35 @@ the activity and in the feed.
 
 Not yet: the non-subscriber view ("only that an action happened") needs
 subscriptions; the module is the owner's own for now.
+
+## Portfolio Dashboard, part 3: Performance Insights (2026-11-09)
+
+Module 5 of Part 1, `GET /portfolios/:id/insights` (owner only), worked out
+on request from the stored history (`src/performance/insights.ts`, pure).
+
+- **On the genuine performance index**, so capital rewards never count as
+  return. Total Return, Average Monthly Return, Best / Worst Month, Positive
+  Months, Max Drawdown (with peak and trough dates), Max Daily Gain / Loss
+  (with dates), Portfolio Age in days.
+- **Trading sessions only.** The history has a value for every calendar
+  date; the insights use the dates the benchmarks traded, so a weekend is
+  never a "0% day". Monday to Friday stands in until benchmark closes exist.
+- **Same start and end for everything (spec).** Start = the opening date;
+  end = the last session that every benchmark with data has a close for.
+  Benchmarks are valued like holdings (close on or before a date) and every
+  series is rebased to 100 for the chart. Excess Return = portfolio -
+  benchmark.
+- **Benchmarks:** S&P 500 through SPY (the existing `benchmark` setting) and
+  NASDAQ-100 through QQQ (new setting `benchmark_nasdaq100`), price return,
+  provisional, like the decision for SPY. The valuation job now keeps closes
+  for both. A benchmark without data shows "no data yet" and does not hold
+  the others back.
+- **My choices, open for Gal to change:** months are calendar months in
+  Israel time; a month counts once it is over; the opening month counts from
+  the opening date and is labelled "from opening"; the month in progress is
+  shown but not counted. Average Monthly Return is the plain average of the
+  counted months.
+- **Not built:** TA-35 / TA-125 (no Tel Aviv data on the plan, and no Tel
+  Aviv securities can be bought, so the condition never arises yet);
+  dividends and corporate actions, for the portfolio and the benchmarks
+  alike, remain open.
