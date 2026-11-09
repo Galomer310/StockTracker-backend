@@ -2635,3 +2635,15 @@ holding that cannot be classified for lack of data is reported apart as
   the 200; needs 200 closes.
 - **Dividend and Profitability:** shown as "not available yet" - the spec
   does not define them and the plan has no fundamentals.
+
+## Carousel Risk Level and Insights explanations (2026-11-09)
+
+- **Risk Level on the carousel card** (Part 1, carousel): `GET /portfolios`
+  now gives each portfolio `risk: { score, band }` from the same Risk Score
+  as the Investment Profile (one source), or null until it can be computed
+  (20 trading sessions and volume data). The card shows the band.
+- **Explanations** (Part 1, "User education"): every Performance Insights
+  figure now has the info button with What this shows / How it is measured /
+  How to read it, as the Investment Profile and Exposure modules do.
+- Still open: Category / Style on the card (player-chosen or derived - Gal's
+  ruling).
