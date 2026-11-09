@@ -112,7 +112,10 @@ export const getLeaderboard: RequestHandler = async (req, res, next) => {
               COALESCE(v.holdings_count, 0)  AS holdings_count
        FROM portfolios p
        JOIN users u ON u.id = p.user_id
-       LEFT JOIN (${POSITION_VALUES}) v ON v.portfolio_id = p.id`
+       LEFT JOIN (${POSITION_VALUES}) v ON v.portfolio_id = p.id
+       -- A test account (src/testTools) ranks only on its own screen.
+       WHERE NOT u.is_tester OR p.user_id = $1`,
+      [viewerId]
     );
 
     const entries = result.rows

@@ -580,3 +580,11 @@ CREATE TABLE IF NOT EXISTS portfolio_history_status (
   final_through  DATE,
   rebuilt_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ---------------------------------------------------------------------------
+-- Test player (decided by Gal 2026-11-09)
+-- ---------------------------------------------------------------------------
+-- The accounts listed in TEST_PLAYER_EMAILS, marked at server start
+-- (src/testTools/service.ts). A tester can use the test tools, and is hidden
+-- from other players' leaderboard and feed.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_tester BOOLEAN NOT NULL DEFAULT FALSE;

@@ -2328,3 +2328,19 @@ From Part 1 (Modules 1 and the carousel), on top of the portfolio history.
 - **Sector** still comes from the client at purchase time
   (`watchlist.industry`); a security master is still a gap.
 - Owner only: what others may see depends on subscriptions, not built.
+
+## Test player and app-wide look (2026-11-09)
+
+**Decided by Gal:** a separate test account (not his own), with every tool
+offered: daily rewards, XP/levels/titles, achievements, limits and resets;
+test changes marked and undoable. Built as described in the backend README
+("Test player"). The account is hidden from other players' leaderboard and
+feed.
+
+**Look:** Gal asked for the whole app in the Player Card's style, with a
+gold glow around whatever the pointer is over - cards, the header and
+every button. The frontend's `src/theme.css` re-points the app's tokens to
+the Player Card palette (near-black, champagne gold, cream, display serifs)
+and adds the frame and glow. Dark mode only; light mode keeps its palette.
+The progression pages (achievements, rewards, test panel) keep the navy
+palette from the titles spec, with the same glow.

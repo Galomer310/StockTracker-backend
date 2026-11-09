@@ -69,9 +69,11 @@ export const getFeed: RequestHandler = async (req, res, next) => {
        JOIN users u ON u.id = t.user_id
        LEFT JOIN portfolios p ON p.id = t.portfolio_id
        LEFT JOIN stocks s ON s.stock_symbol = t.stock_symbol
+       -- A test account's posts (src/testTools) are shown only to itself.
+       WHERE NOT u.is_tester OR t.user_id = $3
        ORDER BY t.occurred_at DESC, t.id DESC
        LIMIT $1 OFFSET $2`,
-      [limit, offset]
+      [limit, offset, viewerId]
     );
 
     const ids = postsResult.rows.map((row) => row.id);
@@ -103,9 +105,9 @@ export const getFeed: RequestHandler = async (req, res, next) => {
                 u.display_name, u.avatar_id
          FROM feed_comments c
          JOIN users u ON u.id = c.user_id
-         WHERE c.trade_note_id = ANY($1::int[])
+         WHERE c.trade_note_id = ANY($1::int[]) AND (NOT u.is_tester OR c.user_id = $2)
          ORDER BY c.created_at ASC, c.id ASC`,
-        [ids]
+        [ids, viewerId]
       ),
     ]);
 

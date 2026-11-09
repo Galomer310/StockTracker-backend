@@ -25,7 +25,7 @@ import pool from "../config/db";
 import { AchievementDef, evaluate, FoundingPeriod, newlyUnlocked, PlayerFacts } from "./evaluate";
 import { levelFor, progressFor, Threshold, tierOfLevel } from "./levels";
 
-export type XpSource = "game_achievement" | "professional_achievement" | "competition" | "daily_login";
+export type XpSource = "game_achievement" | "professional_achievement" | "competition" | "daily_login" | "test";
 
 export interface SyncResult {
   new_achievements: string[];
