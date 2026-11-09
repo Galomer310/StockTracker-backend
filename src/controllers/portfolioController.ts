@@ -125,12 +125,28 @@ export const listPortfolios: RequestHandler = async (req, res, next) => {
     const byPortfolio = new Map<number, number[]>();
     for (const r of series.rows) byPortfolio.set(r.portfolio_id, [...(byPortfolio.get(r.portfolio_id) ?? []), Number(r.perf_index)]);
 
+    // The carousel's Risk Level: the same Risk Score as the Investment
+    // Profile (one source for both), or null while it cannot be computed yet.
+    // Loaded lazily: performance/service is heavier than this controller needs.
+    const { portfolioProfile } = await import("../performance/service");
+    const risk = new Map<number, { score: number; band: string } | null>();
+    for (const id of ids) {
+      try {
+        const prof = await portfolioProfile(id, userId);
+        risk.set(id, prof && prof.risk.available ? { score: prof.risk.score, band: prof.risk.band } : null);
+      } catch (error) {
+        console.error(`Risk for portfolio ${id} failed:`, error);
+        risk.set(id, null);
+      }
+    }
+
     res.json({
       portfolios: result.rows.map((row) => ({
         ...valuePortfolio(row),
         status: row.status,
         last_updated: row.last_updated,
         sparkline: thin(byPortfolio.get(row.id) ?? [], SPARKLINE_POINTS),
+        risk: risk.get(row.id) ?? null,
       })),
       limit: portfolioLimitFor(userId),
       starting_cash: STARTING_CASH,
