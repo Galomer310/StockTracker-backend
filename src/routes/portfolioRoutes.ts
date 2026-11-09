@@ -2,7 +2,7 @@ import express from "express";                 // Import express
 import { listPortfolios, createPortfolio } from "../controllers/portfolioController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { watchlistLimiter } from "../middleware/rateLimiter";    // Per-user limit
-import { portfolioHistory, portfolioInsights } from "../performance/service"; // Rebuilt daily values, Module 5
+import { portfolioHistory, portfolioInsights, portfolioProfile } from "../performance/service"; // Rebuilt daily values, Modules 3 and 5
 import { getAllocation, getComposition } from "../controllers/portfolioDashboardController";
 
 const router = express.Router();               // Create a new router instance
@@ -60,6 +60,27 @@ router.get("/:id/insights", async (req, res, next) => {
       return;
     }
     res.json(insights);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /portfolios/:id/profile - Module 3, Investment Profile: Risk,
+// Volatility, Diversification, Horizon and Turnover, each a 0-100 meter
+// with its parts. The owner's own portfolio only.
+router.get("/:id/profile", async (req, res, next) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid portfolio id" });
+    return;
+  }
+  try {
+    const profile = await portfolioProfile(id, (req as any).user.id);
+    if (!profile) {
+      res.status(404).json({ error: "Portfolio not found" });
+      return;
+    }
+    res.json(profile);
   } catch (error) {
     next(error);
   }

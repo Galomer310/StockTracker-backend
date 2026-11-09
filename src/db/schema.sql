@@ -550,6 +550,12 @@ CREATE TABLE IF NOT EXISTS daily_prices (
   PRIMARY KEY (symbol, date)
 );
 
+-- Shares traded that session, for dollar liquidity (close x volume; the
+-- Investment Profile's Liquidity Risk). Null where it was not fetched: rows
+-- stored before this column existed get theirs for the recent sessions the
+-- metric needs (service.ts ensureVolumes).
+ALTER TABLE daily_prices ADD COLUMN IF NOT EXISTS volume NUMERIC(20,0);
+
 -- How far each symbol's closes are known to be complete: every session up
 -- to checked_through is in daily_prices (or there was none). A day after it
 -- is not final yet.

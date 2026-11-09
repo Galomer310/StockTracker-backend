@@ -2393,3 +2393,45 @@ on request from the stored history (`src/performance/insights.ts`, pure).
   Aviv securities can be bought, so the condition never arises yet);
   dividends and corporate actions, for the portfolio and the benchmarks
   alike, remain open.
+
+## Portfolio Dashboard, part 4: Investment Profile (2026-11-09)
+
+Module 3 of Part 1, `GET /portfolios/:id/profile` (owner only), worked out
+on request (`src/performance/profile.ts`, pure). Exactly the five
+dimensions: Risk, Portfolio Volatility, Diversification, Investment Horizon,
+Portfolio Turnover, each a 0-100 meter with its result, an info button with
+"About this metric" (what it shows / how it is measured / how to read it)
+and the parts behind it.
+
+**Scales approved by Gal 2026-11-09** (provisional; defaults in code,
+overridable with the `risk_scales` setting): linear and clamped -
+annualized volatility 5% -> 0, 55% -> 100; max drawdown 0% -> 0, 50% -> 100;
+low-liquidity weight 0% -> 0, 50% -> 100; 90-day turnover 0% -> 0,
+200% -> 100; largest position 5% -> 0, 50% -> 100; top 3 15% -> 0,
+90% -> 100; sector = mean of (largest sector 20% -> 0, 100% -> 100) and
+(HHI 0.1 -> 0, 1 -> 100); effective holdings on a log scale,
+100 x (1 - ln N / ln 20) (one holding 100, twenty or more 0). The spec's
+weights and bands are unchanged.
+
+**My choices where the spec is silent, for Gal to confirm:**
+- Volatility over the last 90 sessions, annualized; a younger portfolio
+  shows it once it has 20 sessions (over what it has, stated on screen).
+  Risk waits for the same 20 sessions.
+- Max drawdown in Risk: the whole history.
+- Concentration on invested weights (cash is not a company, as the spec
+  says for Effective Holdings); liquidity on whole-portfolio weights, like
+  Module 4.
+- Sector still comes from what was recorded at purchase; a holding with no
+  sector counts as a sector of its own. ETF classes are not applied (no
+  security master yet), so an ETF counts like a stock.
+- Liquidity: average close x volume over the last 20 sessions, under $5M
+  is low (spec). `daily_prices` now keeps volume; the job refetches the
+  last 45 days once for held symbols stored before. A holding without
+  volume data is listed as unknown and not counted as low; with none for
+  any holding, Risk waits.
+- Turnover: invested weights; investing cash for the first time (or
+  selling everything into cash) replaces nothing; the 90-day figure is the
+  sum of the events in 90 days.
+- Horizon: every bought lot, sold first-in first-out, open lots counted to
+  today; the median weighted by the money put in. Very Short <= 7 days,
+  Short <= 30, Medium <= 90, Long <= 365, Very Long beyond.

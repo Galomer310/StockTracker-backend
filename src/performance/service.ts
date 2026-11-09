@@ -1,7 +1,9 @@
 import pool from "../config/db";
 import { localDate } from "../metrics/calendar";
 import { fetchUnadjustedCloses } from "../services/massive";
-import { computeInsights } from "./insights";
+import { compositionEvents } from "./composition";
+import { computeInsights, sessionPoints } from "./insights";
+import { computeProfile, DEFAULT_SCALES, ProfileScales } from "./profile";
 import { addDays, checkAgainstLive, finalThrough, lastFinalSession, performanceIndexOf, PricePoint, reconstructDailyValues } from "./history";
 
 /* ===========================================================================
@@ -82,10 +84,10 @@ export const ensureCloses = async (symbols: string[], now: Date = new Date()) =>
       const closes = (await fetchUnadjustedCloses(symbol, from, target)).filter((c) => c.date <= target);
       if (closes.length > 0) {
         await pool.query(
-          `INSERT INTO daily_prices (symbol, date, close)
-           SELECT $1, d, c FROM unnest($2::date[], $3::numeric[]) AS t(d, c)
-           ON CONFLICT (symbol, date) DO UPDATE SET close = EXCLUDED.close`,
-          [symbol, closes.map((c) => c.date), closes.map((c) => c.close)]
+          `INSERT INTO daily_prices (symbol, date, close, volume)
+           SELECT $1, d, c, v FROM unnest($2::date[], $3::numeric[], $4::numeric[]) AS t(d, c, v)
+           ON CONFLICT (symbol, date) DO UPDATE SET close = EXCLUDED.close, volume = COALESCE(EXCLUDED.volume, daily_prices.volume)`,
+          [symbol, closes.map((c) => c.date), closes.map((c) => c.close), closes.map((c) => c.volume)]
         );
       }
       await pool.query(
@@ -106,6 +108,58 @@ export const ensureCloses = async (symbols: string[], now: Date = new Date()) =>
     }
   }
   return report;
+};
+
+/** Sessions of volume the liquidity measure looks back over (spec: 20). */
+const VOLUME_SESSIONS = 20;
+// Calendar days that always hold 20 sessions, even across holidays.
+const VOLUME_LOOKBACK_DAYS = 45;
+
+/**
+ * Closes stored before daily_prices had a volume column have none. For the
+ * symbols held now, fetch the recent sessions again (one request each) when
+ * any of them lacks its volume. A no-op once filled: new closes arrive with
+ * their volume.
+ */
+export const ensureVolumes = async (symbols: string[], now: Date = new Date()) => {
+  const target = lastFinalSession(now);
+  const from = addDays(target, -VOLUME_LOOKBACK_DAYS);
+  const report: { symbol: string; filled: number; error?: string }[] = [];
+  for (const symbol of symbols) {
+    const gap = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM daily_prices WHERE symbol = $1 AND date >= $2 AND volume IS NULL",
+      [symbol, from]
+    );
+    if (gap.rows[0].n === 0) continue;
+    try {
+      const bars = await fetchUnadjustedCloses(symbol, from, target);
+      const r = await pool.query(
+        `UPDATE daily_prices p SET volume = t.v
+         FROM unnest($2::date[], $3::numeric[]) AS t(d, v)
+         WHERE p.symbol = $1 AND p.date = t.d AND p.volume IS NULL`,
+        [symbol, bars.map((b) => b.date), bars.map((b) => b.volume)]
+      );
+      report.push({ symbol, filled: r.rowCount ?? 0 });
+    } catch (error: any) {
+      report.push({ symbol, filled: 0, error: String(error?.message ?? error).slice(0, 300) });
+    }
+  }
+  return report;
+};
+
+/** Average daily dollar volume (close x volume) over the last 20 sessions with volume. */
+const loadDollarVolumes = async (symbols: string[]): Promise<Record<string, number | null>> => {
+  const out: Record<string, number | null> = Object.fromEntries(symbols.map((s) => [s, null]));
+  if (symbols.length === 0) return out;
+  const r = await pool.query(
+    `SELECT symbol, AVG(close * volume) AS dv FROM (
+       SELECT symbol, close, volume, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+       FROM daily_prices WHERE symbol = ANY($1::text[]) AND volume IS NOT NULL
+     ) x WHERE rn <= $2 GROUP BY symbol`,
+    [symbols, VOLUME_SESSIONS]
+  );
+  for (const row of r.rows) out[row.symbol] = row.dv === null ? null : Number(row.dv);
+  return out;
 };
 
 const loadCloses = async (symbols: string[]): Promise<Record<string, PricePoint[]>> => {
@@ -235,6 +289,8 @@ export const runValuationJob = async (now: Date = new Date()) => {
     const traded = await pool.query("SELECT DISTINCT stock_symbol FROM trade_notes ORDER BY stock_symbol");
     const symbols = [...marks, ...traded.rows.map((r) => r.stock_symbol).filter((s) => !marks.includes(s))];
     const prices = await ensureCloses(symbols, now);
+    const held = await pool.query("SELECT DISTINCT stock_symbol FROM watchlist ORDER BY stock_symbol");
+    const volumes = await ensureVolumes(held.rows.map((r) => r.stock_symbol), now);
     const portfolios = await pool.query("SELECT id FROM portfolios ORDER BY id");
     const rebuilt = [];
     for (const { id } of portfolios.rows) {
@@ -247,9 +303,10 @@ export const runValuationJob = async (now: Date = new Date()) => {
     const inconsistent = rebuilt.filter((r) => r && !r.consistent);
     console.log(
       `[valuation] ${prices.filter((p) => !p.error).length}/${prices.length} symbols fetched, ` +
-        `${rebuilt.length} portfolios rebuilt, ${inconsistent.length} inconsistent`
+        `${rebuilt.length} portfolios rebuilt, ${inconsistent.length} inconsistent` +
+        (volumes.length ? `, volume filled for ${volumes.filter((v) => !v.error).length}/${volumes.length} held symbols` : "")
     );
-    return { prices, rebuilt };
+    return { prices, volumes, rebuilt };
   } finally {
     running = false;
   }
@@ -329,5 +386,101 @@ export const portfolioInsights = async (portfolioId: number, userId: number, now
     ...(outcome.ok
       ? { available: true as const, insights: outcome.insights }
       : { available: false as const, reason: outcome.reason, age_days: outcome.age_days }),
+  };
+};
+
+/** The approved scales, with any override from the `risk_scales` setting. */
+export const loadScales = async (): Promise<ProfileScales> => {
+  const r = await pool.query("SELECT value FROM progression_settings WHERE key = 'risk_scales'");
+  return { ...DEFAULT_SCALES, ...(r.rows[0]?.value ?? {}) };
+};
+
+/**
+ * Module 3, Investment Profile, for the owner (src/performance/profile.ts).
+ * Null when the portfolio is not the caller's.
+ */
+export const portfolioProfile = async (portfolioId: number, userId: number, now: Date = new Date()) => {
+  const p = (
+    await pool.query("SELECT id, name, starting_balance, cash, created_at FROM portfolios WHERE id = $1 AND user_id = $2", [
+      portfolioId,
+      userId,
+    ])
+  ).rows[0];
+  if (!p) return null;
+  const [benchmarks, scales] = await Promise.all([loadBenchmarks(), loadScales()]);
+  const [rows, lotsR, tradesR, flowsR] = await Promise.all([
+    pool.query("SELECT date, perf_index, estimated FROM portfolio_daily_values WHERE portfolio_id = $1 ORDER BY date", [portfolioId]),
+    // The holdings now, valued as every screen values them: the cached
+    // close, or what was paid. Sector as recorded with the most recent lot.
+    pool.query(
+      `SELECT w.stock_symbol, w.price_at_time, w.quantity, w.industry, s.last_price
+       FROM watchlist w LEFT JOIN stocks s ON s.stock_symbol = w.stock_symbol
+       WHERE w.portfolio_id = $1 ORDER BY w.added_at, w.id`,
+      [portfolioId]
+    ),
+    pool.query(
+      "SELECT id, created_at, stock_symbol, action, quantity, price FROM trade_notes WHERE portfolio_id = $1 ORDER BY created_at, id",
+      [portfolioId]
+    ),
+    pool.query("SELECT applied_at, cash_after - cash_before AS amount FROM capital_adjustments WHERE portfolio_id = $1", [portfolioId]),
+  ]);
+
+  const bySymbol = new Map<string, any[]>();
+  for (const lot of lotsR.rows) bySymbol.set(lot.stock_symbol, [...(bySymbol.get(lot.stock_symbol) ?? []), lot]);
+  const holdings = [...bySymbol.entries()].map(([symbol, lots]) => {
+    const shares = lots.reduce((t, l) => t + Number(l.quantity), 0);
+    const cost = lots.reduce((t, l) => t + Number(l.quantity) * Number(l.price_at_time), 0);
+    const priced = lots.find((l) => l.last_price !== null);
+    const price = priced ? Number(priced.last_price) : shares ? cost / shares : 0;
+    const sector = [...lots].reverse().find((l) => l.industry)?.industry ?? null;
+    return { symbol, value: shares * price, sector };
+  });
+
+  const trades = tradesR.rows.map((t) => ({
+    id: t.id,
+    at: new Date(t.created_at).toISOString(),
+    date: localDate(new Date(t.created_at)),
+    symbol: t.stock_symbol as string,
+    action: t.action as "buy" | "sell",
+    quantity: Number(t.quantity),
+    price: Number(t.price),
+  }));
+  const symbols = [...new Set(trades.map((t) => t.symbol))];
+  const [closes, dollarVolume] = await Promise.all([
+    loadCloses([...new Set([...symbols, ...benchmarks.map((b) => b.symbol)])]),
+    loadDollarVolumes(holdings.map((h) => h.symbol)),
+  ]);
+  const events = compositionEvents({
+    startingBalance: Number(p.starting_balance),
+    trades,
+    flows: flowsR.rows.map((f) => ({ at: new Date(f.applied_at).toISOString(), amount: Number(f.amount) })),
+    closes,
+  });
+
+  const days = rows.rows.map((r) => ({
+    date: dateText(r.date),
+    perf_index: r.perf_index === null ? null : Number(r.perf_index),
+    estimated: r.estimated,
+  }));
+  const openedOn = localDate(new Date(p.created_at));
+  const profile = computeProfile({
+    today: localDate(now),
+    points: sessionPoints(
+      openedOn,
+      days,
+      benchmarks.map((b) => ({ key: b.key, symbol: b.symbol, name: b.name, closes: closes[b.symbol] ?? [] }))
+    ),
+    holdings,
+    cash: Number(p.cash),
+    dollarVolume,
+    events: events.map((e) => ({ date: localDate(new Date(e.at)), before: e.before, after: e.after })),
+    trades,
+    scales,
+  });
+  return {
+    portfolio: { id: p.id, name: p.name },
+    history_built: days.length > 0,
+    scales: { provisional: true },
+    ...profile,
   };
 };
