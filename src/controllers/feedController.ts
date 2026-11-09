@@ -85,8 +85,8 @@ export const getFeed: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    // Three small queries for the whole page instead of three per post.
-    const [countsResult, mineResult, commentsResult] = await Promise.all([
+    // Four small queries for the whole page instead of four per post.
+    const [countsResult, mineResult, commentsResult, followupsResult] = await Promise.all([
       pool.query(
         `SELECT trade_note_id, reaction, COUNT(*)::int AS count
          FROM feed_reactions
@@ -109,7 +109,20 @@ export const getFeed: RequestHandler = async (req, res, next) => {
          ORDER BY c.created_at ASC, c.id ASC`,
         [ids, viewerId]
       ),
+      pool.query(
+        `SELECT id, trade_note_id, body, created_at FROM trade_followups
+         WHERE trade_note_id = ANY($1::int[]) ORDER BY created_at ASC, id ASC`,
+        [ids]
+      ),
     ]);
+
+    // The author's dated additions to each rationale.
+    const followupsByPost = new Map<number, unknown[]>();
+    for (const row of followupsResult.rows) {
+      const list = followupsByPost.get(row.trade_note_id) ?? [];
+      list.push({ id: row.id, body: row.body, created_at: row.created_at });
+      followupsByPost.set(row.trade_note_id, list);
+    }
 
     const countsByPost = new Map<number, Record<string, number>>();
     for (const row of countsResult.rows) {
@@ -171,6 +184,7 @@ export const getFeed: RequestHandler = async (req, res, next) => {
       reactions: countsByPost.get(row.id) ?? {},
       my_reaction: mineByPost.get(row.id) ?? null,
       comments: commentsByPost.get(row.id) ?? [],
+      followups: followupsByPost.get(row.id) ?? [],
     }));
 
     res.json({ posts, has_more: postsResult.rows.length === limit });
@@ -301,6 +315,45 @@ export const addComment: RequestHandler = async (req, res, next) => {
     });
   } catch (error) {
     console.error("Error adding comment:", error);
+    next(error);
+  }
+};
+
+// POST /feed/:id/followups
+// The trade's author adds to its rationale (spec Part 1, Module 2): the
+// original stays as published, and this is a new, dated note under it. Only
+// the author's own trades: anyone else's answers 404, as if it did not exist.
+export const MAX_FOLLOWUP_LENGTH = 2000;
+export const addFollowup: RequestHandler = async (req, res, next) => {
+  const userId = (req as any).user.id;
+  const tradeId = Number(req.params.id);
+  const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+
+  if (!Number.isInteger(tradeId)) {
+    res.status(400).json({ error: "Invalid trade id", code: "INVALID_TRADE" });
+    return;
+  }
+  if (!body) {
+    res.status(400).json({ error: "A follow-up cannot be empty.", code: "FOLLOWUP_EMPTY" });
+    return;
+  }
+  if (body.length > MAX_FOLLOWUP_LENGTH) {
+    res.status(400).json({ error: `A follow-up must be ${MAX_FOLLOWUP_LENGTH} characters or fewer.`, code: "FOLLOWUP_TOO_LONG" });
+    return;
+  }
+  try {
+    const own = await pool.query("SELECT id FROM trade_notes WHERE id = $1 AND user_id = $2", [tradeId, userId]);
+    if (own.rows.length === 0) {
+      res.status(404).json({ error: "Trade not found", code: "TRADE_NOT_FOUND" });
+      return;
+    }
+    const inserted = await pool.query(
+      "INSERT INTO trade_followups (trade_note_id, user_id, body) VALUES ($1, $2, $3) RETURNING id, body, created_at",
+      [tradeId, userId, body]
+    );
+    res.status(201).json({ followup: inserted.rows[0] });
+  } catch (error) {
+    console.error("Error adding follow-up:", error);
     next(error);
   }
 };

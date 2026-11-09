@@ -162,6 +162,16 @@ export const getComposition: RequestHandler = async (req, res, next) => {
       (closes[r.symbol] ??= []).push({ date: dateText(r.date), close: Number(r.close) });
     }
     const notes = new Map(tradesR.rows.map((t) => [t.id, t.note]));
+    const followupsR = await pool.query(
+      `SELECT f.id, f.trade_note_id, f.body, f.created_at FROM trade_followups f
+       JOIN trade_notes t ON t.id = f.trade_note_id
+       WHERE t.portfolio_id = $1 ORDER BY f.created_at, f.id`,
+      [id]
+    );
+    const followups = new Map<number, unknown[]>();
+    for (const f of followupsR.rows) {
+      followups.set(f.trade_note_id, [...(followups.get(f.trade_note_id) ?? []), { id: f.id, body: f.body, created_at: f.created_at }]);
+    }
     const events = compositionEvents({
       startingBalance: Number(p.starting_balance),
       trades: tradesR.rows.map((t) => ({
@@ -181,7 +191,7 @@ export const getComposition: RequestHandler = async (req, res, next) => {
     res.json({
       portfolio: { id: p.id, name: p.name },
       symbols: symbols.sort(),
-      events: events.reverse().map((e) => ({ ...e, note: notes.get(e.trade_id) ?? null })),
+      events: events.reverse().map((e) => ({ ...e, note: notes.get(e.trade_id) ?? null, followups: followups.get(e.trade_id) ?? [] })),
     });
   } catch (error) {
     next(error);

@@ -2344,3 +2344,20 @@ the Player Card palette (near-black, champagne gold, cream, display serifs)
 and adds the frame and glow. Dark mode only; light mode keeps its palette.
 The progression pages (achievements, rewards, test panel) keep the navy
 palette from the titles spec, with the same glow.
+
+## Portfolio Dashboard, part 2: Portfolio Activity (2026-11-09)
+
+Module 2 of Part 1. Compact on the dashboard (replacing the trade journal
+there; the journal stays on other players' portfolio pages): the newest
+actions with date, kind (Added / Increased / Reduced / Removed), ticker,
+and previous and new exposure. Expanded: View A, detailed activity (date and
+exact time, prices, rationale), and View B, the composition table (shared
+with Portfolio History). Dated by execution, like the history.
+
+**Follow-ups** (`trade_followups`): the spec keeps a published rationale
+immutable and adds information as a new dated follow-up. Only the trade's
+author can add one; none can be edited; they show under the rationale in
+the activity and in the feed.
+
+Not yet: the non-subscriber view ("only that an action happened") needs
+subscriptions; the module is the owner's own for now.
