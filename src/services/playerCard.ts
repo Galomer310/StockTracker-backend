@@ -72,7 +72,7 @@ export interface Progression extends LevelProgress {
   active_title: TitleView | null;
 }
 
-// Medals and game achievements share this shape. Medals do not exist yet.
+// Medals and game achievements share this shape.
 export interface Award {
   id: string;
   art: string;
@@ -86,6 +86,19 @@ export interface Award {
   rank: number;
   xp: number;
   earned_at: string;
+  /** Professional medals only: what the medal itself shows (spec 5.5). */
+  medal?: {
+    medal_id: string;
+    period_key: string;
+    tier: number;
+    decoration: number;
+    subtitle: string | null;
+    /** Outperformance / return as a fraction, or a streak / count. */
+    figure: number | null;
+    figure_kind: "outperformance" | "return" | "months" | "quarters";
+    period_label: { en: string; he: string } | null;
+    current_streak: number | null;
+  };
 }
 
 export interface PlayerCard {
@@ -137,7 +150,8 @@ export const buildPlayerCard = (
   portfolios: PortfolioRow[],
   calculatedAt: Date,
   progression: ProgressionInput | null = null,
-  followers = 0
+  followers = 0,
+  medals: { total: number; top: Award[] } = { total: 0, top: [] }
 ): PlayerCard => {
   const summaries = portfolios.map(toSummary);
   const counts = portfolioCounts(summaries);
@@ -165,7 +179,7 @@ export const buildPlayerCard = (
       average_month_to_date_return: averageMonthToDateReturn(summaries),
     },
     competitions: competitionsOf(competitionStats([])),
-    medals: { total: 0, top: [] },
+    medals,
     achievements: progression?.achievements ?? { total: 0, top: [] },
   };
 };

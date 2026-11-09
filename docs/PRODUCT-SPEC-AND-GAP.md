@@ -2435,3 +2435,66 @@ weights and bands are unchanged.
 - Horizon: every bought lot, sold first-in first-out, open lots counted to
   today; the median weighted by the money put in. Very Short <= 7 days,
   Short <= 30, Medium <= 90, Long <= 365, Very Long beyond.
+
+### Stage 2: Beat the Market, Portfolio Return, Green Months and medals (built 2026-11-09)
+
+`src/professional/` - `engine.ts` (per portfolio, pure), `medals.ts` (per
+player, pure), `service.ts` (database), `catalog.json` (seeded insert-only).
+Runs after every valuation job; never from a request.
+
+**Measurement.** On the genuine performance index (capital boosts are
+flows), against SPY over identical dates. A period runs from the index on
+the day before it starts (or the opening date, for a portfolio opened inside
+it, and then the benchmark too) to its last day. Outperform = strictly
+greater. Only finished periods whose every day is final for both the
+portfolio and the benchmark are evaluated, and only for portfolios whose
+rebuilt history matches the live one. Records are never updated or deleted.
+
+**Achievements (portfolio level, one per portfolio and period):**
+monthly Beat the Market (opening month from the opening date); every
+3rd consecutive winning month (3, 6, 9, ... once each per portfolio);
+quarterly Beat the Market (opened in the quarter's first or second month:
+achievement from the opening date but not the medal; third month: no
+result); Quarter Combo II-V (same portfolio, may cross years); Unbroken
+Four (all four quarters of one year); annual (full calendar years only,
+opened before 1 January); 2-5 consecutive winning years; Portfolio Return
+10/20/50/75/100/200/300% with the 30-day qualification (seven consecutive
+days at or above within Days 1-30, at or above on Day 30 or again within
+Days 31-37; a failed attempt restarts on the next day at or above);
+Green Month (return > 0; opening month counts) and every 3rd consecutive
+green month, no maximum.
+
+**Medals (player level, never duplicated; tiers only go up; every unlock
+and upgrade logged):** Monthly Combo (highest streak in one portfolio:
+1/2/3/6/12); Quarterly (distinct quarters won by a full-quarter portfolio:
+1-5; COMBO line = consecutive winning quarters up to the latest evaluated);
+Annual (one per year: Gold, Platinum at 15 points, Sovereign = Calendar
+Sweep); Portfolio Performance (10/20/50/75/100%, Sovereign II at 200%,
+III at 300%); Green Months (1/3/6/9/12, one engraving per full year from
+24 months). Thresholds overridable with the `medal_tiers` setting.
+
+**XP:** the `professional_xp` setting, every amount null (Gal decides).
+Once amounts are set, the next run grants them to every earlier record,
+once each (idempotency key `professional:<record id>`), and the player's
+level follows. Quarter amounts must rise Q1 < Q2 < Q3 < Q4, or quarter XP
+is not granted. Medal upgrades carry no XP.
+
+**Player Card:** shows up to four medals - automatic (tier, then
+importance annual > quarterly > performance > monthly > green, then
+recency) or the player's choice and order (`PUT /players/me/medals/
+display`); choosing changes nothing else. Medals show period, figure and
+subtitle, never the benchmark's name. Full collection at /player/medals.
+
+**My choices, flagged:** the opening date itself counts as "inside" a
+quarter or year (the medal needs opening strictly before the first day,
+as the spec's "Before April 1"); a 30-day attempt that fails restarts on
+the next day at or above the threshold; "active" COMBO counts
+consecutive winning quarters ending at the latest quarter evaluated; the
+annual Sovereign needs the same portfolio to win the year and all four
+quarters; English streak names follow the spec's pattern ("Six Green
+Months", "Two Green Years"), the Hebrew names are mine.
+
+**Not in this stage:** the player-level rare achievements (three / five
+portfolios above the market in a quarter) are stage 4; Risk &
+Discipline is stage 3; competitions and Investor Legacy remain
+foundations ("coming soon").

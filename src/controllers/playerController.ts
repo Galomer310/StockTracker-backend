@@ -1,7 +1,8 @@
 import { RequestHandler } from "express";      // Express handler type
 import pool from "../config/db";                // Shared PostgreSQL pool
 import { POSITION_VALUES, valuePortfolio } from "./portfolioController"; // One shared valuation
-import { buildPlayerCard } from "../services/playerCard";
+import { Award, buildPlayerCard } from "../services/playerCard";
+import { displayedMedals, medalAward } from "../professional/service";
 import { validateProfileUpdate } from "../services/playerProfile";
 import { holdCutoff, nextNicknameChangeAt, nicknameKey, validateNickname } from "../services/nickname";
 import { cardProgression, syncProgression, syncProgressionSafely } from "../progression/service";
@@ -53,8 +54,19 @@ export const getMyPlayerCard: RequestHandler = async (req, res, next) => {
 
     const followers = await pool.query("SELECT COUNT(*)::int AS n FROM follows WHERE followee_id = $1", [userId]);
 
+    // The professional medals the player shows (their choice, or the
+    // automatic order). A failure leaves the panel empty, not the card.
+    let medals = { total: 0, top: [] as Award[] };
+    try {
+      const shown = await displayedMedals(userId);
+      const total = (await pool.query("SELECT COUNT(*)::int AS n FROM player_medals WHERE user_id = $1", [userId])).rows[0].n;
+      medals = { total, top: shown.shown.map(medalAward) };
+    } catch (error) {
+      console.error("Error loading medals for the player card:", error);
+    }
+
     const rows = portfolios.rows.map((row) => ({ ...valuePortfolio(row), status: row.status }));
-    res.json(buildPlayerCard(user.rows[0], rows, new Date(), progression, followers.rows[0].n));
+    res.json(buildPlayerCard(user.rows[0], rows, new Date(), progression, followers.rows[0].n, medals));
   } catch (error) {
     console.error("Error building player card:", error);
     next(error);

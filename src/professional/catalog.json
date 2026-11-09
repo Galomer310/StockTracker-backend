@@ -1,0 +1,132 @@
+{
+  "_comment": "Professional achievements and medals (spec v1.0). Seeded insert-only by migrate.js: rows already in the database are never overwritten. Names are templates: {period} is the month / quarter / year label, {n} a streak length, {pct} a return threshold.",
+  "categories": [
+    { "id": "beat_the_market", "name_en": "Beat the Market", "name_he": "מנצחים את השוק", "status": "active" },
+    { "id": "portfolio_performance", "name_en": "Portfolio Performance", "name_he": "ביצועי תיק", "status": "active" },
+    { "id": "risk_discipline", "name_en": "Risk & Discipline", "name_he": "סיכון ומשמעת", "status": "coming_soon" },
+    { "id": "competition_excellence", "name_en": "Competition Excellence", "name_he": "מצוינות בתחרויות", "status": "coming_soon" },
+    { "id": "rare_achievements", "name_en": "Rare Achievements", "name_he": "הישגים נדירים", "status": "coming_soon" },
+    { "id": "investor_legacy", "name_en": "Investor Legacy", "name_he": "מורשת משקיע", "status": "coming_soon" }
+  ],
+  "achievements": [
+    {
+      "id": "btm_month", "category_id": "beat_the_market",
+      "title_en": "Beat the Market — {period}", "title_he": "מנצחים את השוק — {period}",
+      "description_en": "The portfolio outperformed the S&P 500 over the calendar month (from its opening date in its first month).",
+      "description_he": "התיק השיג תשואה גבוהה מה-S&P 500 בחודש הקלנדרי (בחודש הראשון — מיום הפתיחה).",
+      "scope": "portfolio", "measurement_period": "month", "xp_reward_key": "btm_month", "contributes_to_medal": "btm_monthly_combo", "rarity": "common"
+    },
+    {
+      "id": "btm_month_streak", "category_id": "beat_the_market",
+      "title_en": "{n} Months Above the Market", "title_he": "{n} חודשים ברצף מעל השוק",
+      "description_en": "The same portfolio outperformed the S&P 500 for {n} consecutive calendar months.",
+      "description_he": "אותו תיק השיג תשואה גבוהה מה-S&P 500 במשך {n} חודשים קלנדריים רצופים.",
+      "scope": "portfolio", "measurement_period": "streak", "xp_reward_key": "btm_month_streak", "contributes_to_medal": "btm_monthly_combo", "rarity": "rare"
+    },
+    {
+      "id": "btm_quarter", "category_id": "beat_the_market",
+      "title_en": "Beat the Market {period}", "title_he": "מנצחים את השוק — {period}",
+      "description_en": "The portfolio outperformed the S&P 500 over the calendar quarter. Portfolios opened in the quarter's first two months are measured from their opening date; only a full quarter counts toward the medal.",
+      "description_he": "התיק השיג תשואה גבוהה מה-S&P 500 ברבעון הקלנדרי. תיק שנפתח בשני החודשים הראשונים של הרבעון נמדד מיום הפתיחה; רק רבעון מלא נספר למדליה.",
+      "scope": "portfolio", "measurement_period": "quarter", "xp_reward_key": "btm_quarter", "contributes_to_medal": "btm_quarterly", "rarity": "rare"
+    },
+    {
+      "id": "btm_quarter_combo", "category_id": "beat_the_market",
+      "title_en": "Quarter Combo {roman}", "title_he": "קומבו רבעוני {roman}",
+      "description_en": "The same portfolio won {n} consecutive calendar quarters.",
+      "description_he": "אותו תיק ניצח את השוק ב-{n} רבעונים קלנדריים רצופים.",
+      "scope": "portfolio", "measurement_period": "streak", "xp_reward_key": "btm_quarter_combo", "contributes_to_medal": null, "rarity": "epic"
+    },
+    {
+      "id": "btm_unbroken_four", "category_id": "beat_the_market",
+      "title_en": "Unbroken Four", "title_he": "ארבעה ללא הפסקה",
+      "description_en": "The same portfolio won Q1, Q2, Q3 and Q4 of calendar year {period}.",
+      "description_he": "אותו תיק ניצח את השוק בכל ארבעת הרבעונים של שנת {period}.",
+      "scope": "portfolio", "measurement_period": "year", "xp_reward_key": "btm_unbroken_four", "contributes_to_medal": null, "rarity": "legendary"
+    },
+    {
+      "id": "btm_year", "category_id": "beat_the_market",
+      "title_en": "Beat the Market {period}", "title_he": "מנצחים את השוק — {period}",
+      "description_en": "The portfolio outperformed the S&P 500 over the full calendar year.",
+      "description_he": "התיק השיג תשואה גבוהה מה-S&P 500 לאורך כל השנה הקלנדרית.",
+      "scope": "portfolio", "measurement_period": "year", "xp_reward_key": "btm_year", "contributes_to_medal": "btm_annual", "rarity": "epic"
+    },
+    {
+      "id": "btm_year_streak", "category_id": "beat_the_market",
+      "title_en": "{n} Winning Years", "title_he": "{n} שנים מנצחות ברצף",
+      "description_en": "The same portfolio outperformed the S&P 500 for {n} consecutive calendar years.",
+      "description_he": "אותו תיק השיג תשואה גבוהה מה-S&P 500 במשך {n} שנים קלנדריות רצופות.",
+      "scope": "portfolio", "measurement_period": "streak", "xp_reward_key": "btm_year_streak", "contributes_to_medal": null, "rarity": "legendary"
+    },
+    {
+      "id": "portfolio_return", "category_id": "portfolio_performance",
+      "title_en": "{pct}% Portfolio Return", "title_he": "תשואת תיק של {pct}%",
+      "description_en": "The portfolio's genuine return reached {pct}% and held it: seven consecutive days at or above it within 30 days, and at or above it on Day 30 (or within a 7-day grace period).",
+      "description_he": "התשואה האמיתית של התיק הגיעה ל-{pct}% והחזיקה: שבעה ימים רצופים לפחות ברמה הזו בתוך 30 יום, וברמה הזו ביום ה-30 (או בתוך 7 ימי חסד).",
+      "scope": "portfolio", "measurement_period": "window", "xp_reward_key": "portfolio_return", "contributes_to_medal": "portfolio_performance", "rarity": "rare"
+    },
+    {
+      "id": "green_month", "category_id": "portfolio_performance",
+      "title_en": "Green Month — {period}", "title_he": "חודש ירוק — {period}",
+      "description_en": "The portfolio's return over the calendar month was above zero (from its opening date in its first month).",
+      "description_he": "תשואת התיק בחודש הקלנדרי הייתה מעל אפס (בחודש הראשון — מיום הפתיחה).",
+      "scope": "portfolio", "measurement_period": "month", "xp_reward_key": "green_month", "contributes_to_medal": "green_months", "rarity": "common"
+    },
+    {
+      "id": "green_streak", "category_id": "portfolio_performance",
+      "title_en": "{words}", "title_he": "{n} חודשים ירוקים ברצף",
+      "description_en": "The same portfolio had {n} consecutive positive calendar months.",
+      "description_he": "לאותו תיק היו {n} חודשים קלנדריים חיוביים ברצף.",
+      "scope": "portfolio", "measurement_period": "streak", "xp_reward_key": "green_streak", "contributes_to_medal": "green_months", "rarity": "rare"
+    }
+  ],
+  "medals": [
+    {
+      "id": "btm_annual", "track": "beat_the_market",
+      "title_en": "Beat the Market — Annual", "title_he": "מנצחים את השוק — שנתי",
+      "description_en": "Outperform the S&P 500 over a full calendar year. Gold for the win, Platinum by 15 points or more, Sovereign when every quarter of that year was won too.",
+      "description_he": "תשואה גבוהה מה-S&P 500 לאורך שנה קלנדרית מלאה. זהב על הניצחון, פלטינה בפער של 15 נקודות ומעלה, ריבון כשגם כל רבעוני אותה שנה נוצחו.",
+      "icon": "line_over_benchmark", "progression_type": "period", "is_historical": true
+    },
+    {
+      "id": "btm_quarterly", "track": "beat_the_market",
+      "title_en": "Beat the Market — Quarterly", "title_he": "מנצחים את השוק — רבעוני",
+      "description_en": "Rises with every distinct calendar quarter won by a portfolio active for the whole quarter: 1 Bronze, 2 Silver, 3 Gold, 4 Platinum, 5 Sovereign. Wins need not be consecutive.",
+      "description_he": "עולה עם כל רבעון קלנדרי שנוצח בידי תיק שהיה פעיל כל הרבעון: 1 ארד, 2 כסף, 3 זהב, 4 פלטינה, 5 ריבון. הניצחונות לא חייבים להיות רצופים.",
+      "icon": "line_over_benchmark", "progression_type": "count", "is_historical": false
+    },
+    {
+      "id": "btm_monthly_combo", "track": "beat_the_market",
+      "title_en": "Monthly Beat the Market Combo", "title_he": "קומבו חודשי מעל השוק",
+      "description_en": "The longest run of consecutive months one portfolio beat the S&P 500: 1 Bronze, 2 Silver, 3 Gold, 6 Platinum, 12 Sovereign.",
+      "description_he": "הרצף הארוך ביותר של חודשים שבהם תיק אחד ניצח את ה-S&P 500: 1 ארד, 2 כסף, 3 זהב, 6 פלטינה, 12 ריבון.",
+      "icon": "calendar_over_benchmark", "progression_type": "streak", "is_historical": false
+    },
+    {
+      "id": "portfolio_performance", "track": "portfolio_performance",
+      "title_en": "Portfolio Performance", "title_he": "ביצועי תיק",
+      "description_en": "The highest qualified portfolio return: 10% Bronze, 20% Silver, 50% Gold, 75% Platinum, 100% Sovereign, 200% Sovereign II, 300% Sovereign III.",
+      "description_he": "תשואת התיק הגבוהה ביותר שהוכשרה: 10% ארד, 20% כסף, 50% זהב, 75% פלטינה, 100% ריבון, 200% ריבון II, 300% ריבון III.",
+      "icon": "upward_chart", "progression_type": "threshold", "is_historical": false
+    },
+    {
+      "id": "green_months", "track": "portfolio_performance",
+      "title_en": "Green Months", "title_he": "חודשים ירוקים",
+      "description_en": "The longest run of consecutive positive months in one portfolio: 1 Bronze, 3 Silver, 6 Gold, 9 Platinum, 12 Sovereign, with a new engraving every full year after that.",
+      "description_he": "הרצף הארוך ביותר של חודשים חיוביים בתיק אחד: 1 ארד, 3 כסף, 6 זהב, 9 פלטינה, 12 ריבון, ועיטור נוסף על כל שנה מלאה אחר כך.",
+      "icon": "green_calendar", "progression_type": "streak", "is_historical": false
+    },
+    {
+      "id": "capital_protector", "track": "risk_discipline",
+      "title_en": "Capital Protector", "title_he": "מגן ההון",
+      "description_en": "Coming with the Risk & Discipline stage.", "description_he": "יגיע עם שלב הסיכון והמשמעת.",
+      "icon": "shield_growth", "progression_type": "count", "is_historical": false, "is_enabled": false
+    },
+    {
+      "id": "phoenix_recovery", "track": "risk_discipline",
+      "title_en": "Phoenix Recovery", "title_he": "התאוששות הפניקס",
+      "description_en": "Coming with the Risk & Discipline stage.", "description_he": "יגיע עם שלב הסיכון והמשמעת.",
+      "icon": "phoenix", "progression_type": "tiered", "is_historical": false, "is_enabled": false
+    }
+  ]
+}

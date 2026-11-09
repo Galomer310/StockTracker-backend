@@ -102,6 +102,43 @@ const pool = new Pool({
     }
     console.log(`capital messages: ${messagesSeeded} new row(s) seeded`);
 
+    // Professional achievements and medals (src/professional/catalog.json).
+    // Insert-only, like the game catalog.
+    const pro = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "..", "professional", "catalog.json"), "utf8")
+    );
+    let proSeeded = 0;
+    for (const [i, c] of pro.categories.entries()) {
+      const r = await pool.query(
+        `INSERT INTO professional_categories (id, name_en, name_he, status, sort_order)
+         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
+        [c.id, c.name_en, c.name_he, c.status, i + 1]
+      );
+      proSeeded += r.rowCount;
+    }
+    for (const [i, a] of pro.achievements.entries()) {
+      const r = await pool.query(
+        `INSERT INTO professional_achievements
+           (id, category_id, title_en, title_he, description_en, description_he, scope, measurement_period,
+            xp_reward_key, contributes_to_medal, rarity, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT (id) DO NOTHING`,
+        [a.id, a.category_id, a.title_en, a.title_he, a.description_en, a.description_he, a.scope,
+         a.measurement_period, a.xp_reward_key, a.contributes_to_medal, a.rarity, i + 1]
+      );
+      proSeeded += r.rowCount;
+    }
+    for (const [i, m] of pro.medals.entries()) {
+      const r = await pool.query(
+        `INSERT INTO medals (id, track, title_en, title_he, description_en, description_he, icon,
+                             progression_type, is_historical, is_enabled, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING`,
+        [m.id, m.track, m.title_en, m.title_he, m.description_en, m.description_he, m.icon,
+         m.progression_type, m.is_historical, m.is_enabled !== false, i + 1]
+      );
+      proSeeded += r.rowCount;
+    }
+    console.log(`professional catalog: ${proSeeded} new row(s) seeded`);
+
     const tables = await pool.query(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema='public' ORDER BY table_name`
