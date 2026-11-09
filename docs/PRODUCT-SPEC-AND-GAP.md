@@ -2547,3 +2547,47 @@ undecided.
   never rewarded twice.
 - A new fall to -15% ends a Phoenix path (its tiers stay) and starts a new
   one; Silver's 30 days may start any day after the recovery.
+
+### Stage 4: Rare Achievements and special medals (built 2026-11-09)
+
+`src/professional/rare.ts` (pure), run after the per-portfolio evaluation
+and medals, from the permanent records, the medals and the XP ledger.
+Player-level records (`portfolio_id` null).
+
+- **The First to Beat the Market** - one player on the platform: the
+  earliest completed period with any Beat the Market win; within it the
+  largest outperformance, ties by the lower player id. Inserted only while
+  nobody holds it (one statement).
+- **First to Level 25 / 50 / 100** - one player each, when cumulative XP
+  first reached the level (from `xp_transactions` and `level_thresholds`).
+  No medals (28.2).
+- **Three / Five Portfolios Above the Market** - that many distinct
+  portfolios with quarterly Beat the Market in the same quarter; one record
+  per quarter.
+- **Triple Alpha** - three distinct portfolios each at least 20 percentage
+  points (absolute) above the S&P 500 in the same quarter.
+- **Portfolio Master** - three distinct portfolios with the 100% Portfolio
+  Return achievement (30-day qualification included).
+- **Five-Star Investor** - professional records in five distinct portfolios
+  and Gold or higher in three medal tracks (setting `five_star_medals`).
+
+**Special medals** (one-time, no tiers, fixed prestige, own engraving):
+The First to Beat the Market, Triple Market Beater, Five Portfolio Elite,
+Portfolio Master, Five-Star Investor, Triple Alpha. None for the level
+pioneers or Unbroken Four.
+
+**Test accounts never take a platform-first** (the test panel can set XP
+and history).
+
+**My choices, flagged:** Five-Star's "meaningful professional
+accomplishments" = at least one professional record in the portfolio; the
+three Gold "categories" = three distinct medal tracks (configurable).
+
+**Blocked by the 3-portfolio limit:** Five Portfolios Above the Market,
+Five Portfolio Elite and Five-Star Investor need five portfolios; with
+FREE_TIER_PORTFOLIO_LIMIT = 3 no player can reach them until the limit or
+the paid tier changes. Built and tested (with portfolios inserted
+directly), dormant in practice.
+
+**Still not built:** Competition Excellence (no competitions system) and
+Investor Legacy (not specified); both stay "coming soon".

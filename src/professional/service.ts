@@ -5,6 +5,7 @@ import { awardXp, syncProgressionSafely } from "../progression/service";
 import type { Award } from "../services/playerCard";
 import { evaluatePortfolio, PortfolioEvaluation, ProRecord } from "./engine";
 import { autoOrder, computeMedals, DEFAULT_MEDAL_TIERS, MedalState, MedalTiers } from "./medals";
+import { computeRare, DEFAULT_FIVE_STAR_MEDALS, levelReachedDates, RarePlayer, SPECIAL_MEDALS } from "./rare";
 
 /* ===========================================================================
    Professional achievements and medals, stage 2: the database side.
@@ -187,6 +188,101 @@ export const updateMedals = async (userId: number, tiers?: MedalTiers) => {
   return changes;
 };
 
+/** Platform-unique achievements: at most one player ever (27.2, 27.3). */
+const PLATFORM_UNIQUE = ["first_to_beat_market", "first_to_level_25", "first_to_level_50", "first_to_level_100"];
+
+/**
+ * Stage 4: the player-level rare achievements and their special medals,
+ * from the permanent records, the medals and the XP ledger.
+ */
+export const evaluateRare = async () => {
+  const [users, recs, firsts, gold, ledger, thresholds, taken, setting] = await Promise.all([
+    pool.query("SELECT id, is_tester FROM users ORDER BY id"),
+    pool.query(
+      `SELECT user_id, portfolio_id, achievement_id, period_id, earned_on, outperformance
+       FROM player_professional_achievements
+       WHERE portfolio_id IS NOT NULL AND (achievement_id IN ('btm_month', 'btm_quarter', 'btm_year')
+         OR (achievement_id = 'portfolio_return' AND period_id = '100'))`
+    ),
+    pool.query(
+      `SELECT user_id, portfolio_id, MIN(earned_on) AS first FROM player_professional_achievements
+       WHERE portfolio_id IS NOT NULL GROUP BY user_id, portfolio_id`
+    ),
+    pool.query(
+      `SELECT user_id, medal_id, MIN(happened_at) AS at FROM player_medal_events
+       WHERE tier >= 3 AND medal_id NOT LIKE 'special_%' GROUP BY user_id, medal_id`
+    ),
+    pool.query("SELECT user_id, awarded_at, xp_amount FROM xp_transactions ORDER BY awarded_at, id"),
+    pool.query("SELECT level, xp_required FROM level_thresholds"),
+    pool.query("SELECT DISTINCT achievement_id FROM player_professional_achievements WHERE achievement_id = ANY($1::text[])", [PLATFORM_UNIQUE]),
+    pool.query("SELECT value FROM progression_settings WHERE key = 'five_star_medals'"),
+  ]);
+  const players = new Map<number, RarePlayer>(
+    users.rows.map((u) => [u.id, { user_id: u.id, is_tester: u.is_tester, btm: [], quarters: [], return100: [], portfolios: [], gold: [], level_reached: {} }])
+  );
+  for (const r of recs.rows) {
+    const p = players.get(r.user_id);
+    if (!p) continue;
+    const on = dateText(r.earned_on);
+    if (r.achievement_id === "portfolio_return") p.return100.push({ portfolio_id: r.portfolio_id, earned_on: on });
+    else {
+      p.btm.push({ portfolio_id: r.portfolio_id, achievement_id: r.achievement_id, period_id: r.period_id, earned_on: on, outperformance: Number(r.outperformance) });
+      if (r.achievement_id === "btm_quarter") p.quarters.push({ portfolio_id: r.portfolio_id, quarter: r.period_id, earned_on: on, outperformance: Number(r.outperformance) });
+    }
+  }
+  for (const r of firsts.rows) players.get(r.user_id)?.portfolios.push({ portfolio_id: r.portfolio_id, first_earned_on: dateText(r.first) });
+  for (const r of gold.rows) players.get(r.user_id)?.gold.push({ medal_id: r.medal_id, on: localDate(new Date(r.at)) });
+  const byUser = new Map<number, { at: string; amount: number }[]>();
+  for (const r of ledger.rows) byUser.set(r.user_id, [...(byUser.get(r.user_id) ?? []), { at: new Date(r.awarded_at).toISOString(), amount: r.xp_amount }]);
+  const levels = thresholds.rows.map((t) => ({ level: t.level, xp_required: t.xp_required }));
+  for (const [uid, entries] of byUser) {
+    const p = players.get(uid);
+    if (p) p.level_reached = levelReachedDates(entries, levels);
+  }
+
+  const found = computeRare({
+    players: [...players.values()],
+    taken: new Set(taken.rows.map((r) => r.achievement_id)),
+    fiveStarMedals: Array.isArray(setting.rows[0]?.value) ? setting.rows[0].value : DEFAULT_FIVE_STAR_MEDALS,
+  });
+
+  let inserted = 0;
+  for (const r of found) {
+    // A platform-first is inserted only while nobody holds it (one statement, no race).
+    const res = await pool.query(
+      `INSERT INTO player_professional_achievements (user_id, achievement_id, portfolio_id, period_id, earned_on, outperformance, details)
+       SELECT $1, $2::text, NULL, $3, $4::date, $5::numeric, $6::jsonb
+       WHERE NOT ($7::boolean AND EXISTS (SELECT 1 FROM player_professional_achievements WHERE achievement_id = $2::text))
+       ON CONFLICT (user_id, achievement_id, period_id) WHERE portfolio_id IS NULL DO NOTHING
+       RETURNING id`,
+      [r.user_id, r.achievement_id, r.period_id, r.earned_on, r.outperformance, JSON.stringify(r.details), PLATFORM_UNIQUE.includes(r.achievement_id)]
+    );
+    inserted += res.rowCount ?? 0;
+  }
+
+  // Special medals (28): one each, the first time its achievement exists.
+  let medals = 0;
+  const holders = await pool.query(
+    `SELECT achievement_id, user_id, MIN(earned_on) AS first_on FROM player_professional_achievements
+     WHERE achievement_id = ANY($1::text[]) GROUP BY achievement_id, user_id`,
+    [Object.keys(SPECIAL_MEDALS)]
+  );
+  for (const h of holders.rows) {
+    const m = SPECIAL_MEDALS[h.achievement_id];
+    const res = await pool.query(
+      `INSERT INTO player_medals (user_id, medal_id, period_key, current_tier, highest_tier, as_of)
+       SELECT $1, $2::text, '', $3::int, $3::int, $4::date WHERE EXISTS (SELECT 1 FROM medals WHERE id = $2::text AND is_enabled)
+       ON CONFLICT DO NOTHING RETURNING user_id`,
+      [h.user_id, m.medal_id, m.tier, dateText(h.first_on)]
+    );
+    if (res.rowCount) {
+      await pool.query("INSERT INTO player_medal_events (user_id, medal_id, period_key, tier) VALUES ($1, $2, '', $3)", [h.user_id, m.medal_id, m.tier]);
+      medals++;
+    }
+  }
+  return { records: inserted, medals };
+};
+
 /** The XP key of one record, as the `professional_xp` setting names it. */
 export const xpKeyOf = (achievementId: string, periodId: string): string => {
   if (achievementId === "btm_quarter") return `btm_quarter_q${periodId.slice(-1)}`;
@@ -270,6 +366,14 @@ export const runProfessionalEvaluation = async () => {
         console.error(`[professional] medals for player ${u} failed:`, error);
       }
     }
+    let rare = { records: 0, medals: 0 };
+    try {
+      rare = await evaluateRare();
+    } catch (error) {
+      console.error("[professional] rare achievements failed:", error);
+    }
+    records += rare.records;
+    upgrades += rare.medals;
     const xpUsers = await grantProfessionalXp();
     for (const u of xpUsers) await syncProgressionSafely(u);
     console.log(`[professional] ${records} new achievement record(s), ${upgrades} medal unlock(s)/upgrade(s), XP granted to ${xpUsers.size} player(s)`);
@@ -478,7 +582,7 @@ export const professionalView = async (userId: number) => {
        WHERE r.user_id = $1 ORDER BY r.earned_on DESC, r.id DESC`,
       [userId]
     ),
-    pool.query("SELECT id, track, title_en, title_he, description_en, description_he, icon, is_historical FROM medals WHERE is_enabled ORDER BY sort_order"),
+    pool.query("SELECT id, track, title_en, title_he, description_en, description_he, icon, is_historical, is_special FROM medals WHERE is_enabled ORDER BY sort_order"),
     pool.query(
       `SELECT w.*, p.name FROM return_qualification_windows w JOIN portfolios p ON p.id = w.portfolio_id
        WHERE p.user_id = $1 AND w.status = 'in_progress' ORDER BY w.threshold`,
@@ -548,6 +652,7 @@ export const professionalView = async (userId: number) => {
       track: m.track,
       icon: m.icon,
       is_historical: m.is_historical,
+      is_special: m.is_special,
       name: { en: m.title_en, he: m.title_he },
       description: { en: m.description_en, he: m.description_he },
     })),
