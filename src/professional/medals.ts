@@ -273,12 +273,15 @@ const TRACK_RANK: Record<string, number> = {
   green_months: 1,
 };
 
+// Special medals rank by their fixed tier first; among equals they follow the annual medal.
+const rankOf = (id: string) => TRACK_RANK[id] ?? (id.startsWith("special_") ? 4.5 : 0);
+
 /** The automatic Player Card order: tier, then importance, then recency (6.1). */
 export const autoOrder = <T extends { medal_id: string; tier: number; decoration: number; as_of: string }>(medals: T[]): T[] =>
   [...medals].sort(
     (a, b) =>
       b.tier - a.tier ||
       b.decoration - a.decoration ||
-      (TRACK_RANK[b.medal_id] ?? 0) - (TRACK_RANK[a.medal_id] ?? 0) ||
+      rankOf(b.medal_id) - rankOf(a.medal_id) ||
       b.as_of.localeCompare(a.as_of)
   );

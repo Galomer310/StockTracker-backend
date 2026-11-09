@@ -791,3 +791,15 @@ WHERE id = 'phoenix_recovery' AND description_en LIKE 'Coming with%';
 UPDATE progression_settings SET value = '{"back_from_edge": null, "phoenix_rise": null, "steady_hands": null, "calm_under_fire": null,
   "capital_protector": null, "protected_upside": null, "market_resilience": null}'::jsonb || value
 WHERE key = 'professional_xp';
+
+-- Stage 4, Rare Achievements (2026-11-09): the category goes live (only while
+-- still a placeholder); new XP keys, undecided like the rest; which medal
+-- tracks count toward Five-Star Investor (configurable, spec 27.6).
+UPDATE professional_categories SET status = 'active' WHERE id = 'rare_achievements' AND status = 'coming_soon';
+UPDATE progression_settings SET value = '{"first_to_beat_market": null, "first_to_level_25": null, "first_to_level_50": null,
+  "first_to_level_100": null, "three_portfolios_above_market": null, "five_portfolios_above_market": null,
+  "portfolio_master": null, "five_star_investor": null, "triple_alpha": null}'::jsonb || value
+WHERE key = 'professional_xp';
+INSERT INTO progression_settings (key, value) VALUES
+  ('five_star_medals', '["btm_annual", "btm_quarterly", "btm_monthly_combo", "portfolio_performance", "green_months", "capital_protector", "phoenix_recovery"]')
+ON CONFLICT (key) DO NOTHING;

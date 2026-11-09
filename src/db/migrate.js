@@ -130,10 +130,10 @@ const pool = new Pool({
     for (const [i, m] of pro.medals.entries()) {
       const r = await pool.query(
         `INSERT INTO medals (id, track, title_en, title_he, description_en, description_he, icon,
-                             progression_type, is_historical, is_enabled, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING`,
+                             progression_type, is_historical, is_special, is_enabled, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT (id) DO NOTHING`,
         [m.id, m.track, m.title_en, m.title_he, m.description_en, m.description_he, m.icon,
-         m.progression_type, m.is_historical, m.is_enabled !== false, i + 1]
+         m.progression_type, m.is_historical, m.is_special === true, m.is_enabled !== false, i + 1]
       );
       proSeeded += r.rowCount;
     }

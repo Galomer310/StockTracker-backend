@@ -29,7 +29,7 @@
       "id": "rare_achievements",
       "name_en": "Rare Achievements",
       "name_he": "הישגים נדירים",
-      "status": "coming_soon"
+      "status": "active"
     },
     {
       "id": "investor_legacy",
@@ -259,6 +259,123 @@
       "xp_reward_key": "market_resilience",
       "contributes_to_medal": null,
       "rarity": "rare"
+    },
+    {
+      "id": "first_to_beat_market",
+      "category_id": "rare_achievements",
+      "title_en": "The First to Beat the Market",
+      "title_he": "הראשון לנצח את השוק",
+      "description_en": "The first player on the platform whose portfolio beat the S&P 500 over a completed period. Only one player ever holds it.",
+      "description_he": "השחקן הראשון בפלטפורמה שתיק שלו ניצח את ה-S&P 500 בתקופה שהסתיימה. רק שחקן אחד יחזיק בו אי פעם.",
+      "scope": "player",
+      "measurement_period": "platform",
+      "xp_reward_key": "first_to_beat_market",
+      "contributes_to_medal": "special_first_to_beat_market",
+      "rarity": "legendary"
+    },
+    {
+      "id": "first_to_level_25",
+      "category_id": "rare_achievements",
+      "title_en": "First to Level 25",
+      "title_he": "ראשון לדרגה 25",
+      "description_en": "The first player on the platform to reach Level 25.",
+      "description_he": "השחקן הראשון בפלטפורמה שהגיע לדרגה 25.",
+      "scope": "player",
+      "measurement_period": "platform",
+      "xp_reward_key": "first_to_level_25",
+      "contributes_to_medal": null,
+      "rarity": "legendary"
+    },
+    {
+      "id": "first_to_level_50",
+      "category_id": "rare_achievements",
+      "title_en": "First to Level 50",
+      "title_he": "ראשון לדרגה 50",
+      "description_en": "The first player on the platform to reach Level 50.",
+      "description_he": "השחקן הראשון בפלטפורמה שהגיע לדרגה 50.",
+      "scope": "player",
+      "measurement_period": "platform",
+      "xp_reward_key": "first_to_level_50",
+      "contributes_to_medal": null,
+      "rarity": "legendary"
+    },
+    {
+      "id": "first_to_level_100",
+      "category_id": "rare_achievements",
+      "title_en": "First to Level 100",
+      "title_he": "ראשון לדרגה 100",
+      "description_en": "The first player on the platform to reach Level 100.",
+      "description_he": "השחקן הראשון בפלטפורמה שהגיע לדרגה 100.",
+      "scope": "player",
+      "measurement_period": "platform",
+      "xp_reward_key": "first_to_level_100",
+      "contributes_to_medal": null,
+      "rarity": "legendary"
+    },
+    {
+      "id": "three_portfolios_above_market",
+      "category_id": "rare_achievements",
+      "title_en": "Three Portfolios Above the Market {period}",
+      "title_he": "שלושה תיקים מעל השוק — {period}",
+      "description_en": "Three different portfolios beat the S&P 500 in the same calendar quarter.",
+      "description_he": "שלושה תיקים שונים ניצחו את ה-S&P 500 באותו רבעון קלנדרי.",
+      "scope": "player",
+      "measurement_period": "quarter",
+      "xp_reward_key": "three_portfolios_above_market",
+      "contributes_to_medal": "special_triple_market_beater",
+      "rarity": "epic"
+    },
+    {
+      "id": "five_portfolios_above_market",
+      "category_id": "rare_achievements",
+      "title_en": "Five Portfolios Above the Market {period}",
+      "title_he": "חמישה תיקים מעל השוק — {period}",
+      "description_en": "Five different portfolios beat the S&P 500 in the same calendar quarter.",
+      "description_he": "חמישה תיקים שונים ניצחו את ה-S&P 500 באותו רבעון קלנדרי.",
+      "scope": "player",
+      "measurement_period": "quarter",
+      "xp_reward_key": "five_portfolios_above_market",
+      "contributes_to_medal": "special_five_portfolio_elite",
+      "rarity": "legendary"
+    },
+    {
+      "id": "portfolio_master",
+      "category_id": "rare_achievements",
+      "title_en": "Portfolio Master",
+      "title_he": "מאסטר התיקים",
+      "description_en": "Three different portfolios each completed the 100% Portfolio Return achievement, with its 30-day qualification.",
+      "description_he": "שלושה תיקים שונים השלימו כל אחד את הישג תשואת התיק של 100%, כולל ההכשרה של 30 הימים.",
+      "scope": "player",
+      "measurement_period": "once",
+      "xp_reward_key": "portfolio_master",
+      "contributes_to_medal": "special_portfolio_master",
+      "rarity": "legendary"
+    },
+    {
+      "id": "five_star_investor",
+      "category_id": "rare_achievements",
+      "title_en": "Five-Star Investor",
+      "title_he": "משקיע חמישה כוכבים",
+      "description_en": "Professional achievements in five different portfolios, and Gold or higher in three professional medals.",
+      "description_he": "הישגים מקצועיים בחמישה תיקים שונים, ודרגת זהב ומעלה בשלוש מדליות מקצועיות.",
+      "scope": "player",
+      "measurement_period": "once",
+      "xp_reward_key": "five_star_investor",
+      "contributes_to_medal": "special_five_star_investor",
+      "rarity": "legendary"
+    },
+    {
+      "id": "triple_alpha",
+      "category_id": "rare_achievements",
+      "title_en": "Triple Alpha {period}",
+      "title_he": "טריפל אלפא — {period}",
+      "description_en": "Three different portfolios each beat the S&P 500 by at least 20 percentage points in the same calendar quarter.",
+      "description_he": "שלושה תיקים שונים ניצחו כל אחד את ה-S&P 500 בפער של 20 נקודות אחוז לפחות באותו רבעון קלנדרי.",
+      "scope": "player",
+      "measurement_period": "quarter",
+      "xp_reward_key": "triple_alpha",
+      "contributes_to_medal": "special_triple_alpha",
+      "rarity": "legendary"
     }
   ],
   "medals": [
@@ -340,6 +457,78 @@
       "progression_type": "tiered",
       "is_historical": false,
       "is_enabled": true
+    },
+    {
+      "id": "special_first_to_beat_market",
+      "track": "rare_achievements",
+      "title_en": "The First to Beat the Market",
+      "title_he": "הראשון לנצח את השוק",
+      "description_en": "Awarded once on the whole platform: the first player to beat the S&P 500.",
+      "description_he": "מוענקת פעם אחת בכל הפלטפורמה: לשחקן הראשון שניצח את ה-S&P 500.",
+      "icon": "first_laurel",
+      "progression_type": "one_time",
+      "is_historical": true,
+      "is_special": true
+    },
+    {
+      "id": "special_triple_market_beater",
+      "track": "rare_achievements",
+      "title_en": "Triple Market Beater",
+      "title_he": "מנצח השוק המשולש",
+      "description_en": "Three portfolios above the market in one quarter.",
+      "description_he": "שלושה תיקים מעל השוק ברבעון אחד.",
+      "icon": "three_lines",
+      "progression_type": "one_time",
+      "is_historical": true,
+      "is_special": true
+    },
+    {
+      "id": "special_five_portfolio_elite",
+      "track": "rare_achievements",
+      "title_en": "Five Portfolio Elite",
+      "title_he": "עלית חמשת התיקים",
+      "description_en": "Five portfolios above the market in one quarter.",
+      "description_he": "חמישה תיקים מעל השוק ברבעון אחד.",
+      "icon": "five_lines",
+      "progression_type": "one_time",
+      "is_historical": true,
+      "is_special": true
+    },
+    {
+      "id": "special_portfolio_master",
+      "track": "rare_achievements",
+      "title_en": "Portfolio Master",
+      "title_he": "מאסטר התיקים",
+      "description_en": "Three portfolios qualified at a 100% return.",
+      "description_he": "שלושה תיקים שהוכשרו בתשואה של 100%.",
+      "icon": "crowned_chart",
+      "progression_type": "one_time",
+      "is_historical": true,
+      "is_special": true
+    },
+    {
+      "id": "special_five_star_investor",
+      "track": "rare_achievements",
+      "title_en": "Five-Star Investor",
+      "title_he": "משקיע חמישה כוכבים",
+      "description_en": "Five portfolios with professional achievements and three Gold medals.",
+      "description_he": "חמישה תיקים עם הישגים מקצועיים ושלוש מדליות זהב.",
+      "icon": "five_stars",
+      "progression_type": "one_time",
+      "is_historical": true,
+      "is_special": true
+    },
+    {
+      "id": "special_triple_alpha",
+      "track": "rare_achievements",
+      "title_en": "Triple Alpha",
+      "title_he": "טריפל אלפא",
+      "description_en": "Three portfolios each 20 points above the market in one quarter.",
+      "description_he": "שלושה תיקים, כל אחד 20 נקודות מעל השוק, ברבעון אחד.",
+      "icon": "alpha",
+      "progression_type": "one_time",
+      "is_historical": true,
+      "is_special": true
     }
   ]
 }
