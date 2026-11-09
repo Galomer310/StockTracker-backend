@@ -86,6 +86,22 @@ const pool = new Pool({
     }
     console.log(`catalog: ${seeded} new row(s) seeded`);
 
+    // The capital growth messages (Daily Rewards spec, section 13). Insert-only,
+    // like the catalog: a message edited or disabled in the database stays so.
+    const { messages } = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "..", "rewards", "messages.json"), "utf8")
+    );
+    let messagesSeeded = 0;
+    for (const [i, msg] of messages.entries()) {
+      const r = await pool.query(
+        `INSERT INTO capital_messages (id, text_en, text_he, sort_order) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO NOTHING`,
+        [msg.id, msg.en, msg.he, i + 1]
+      );
+      messagesSeeded += r.rowCount;
+    }
+    console.log(`capital messages: ${messagesSeeded} new row(s) seeded`);
+
     const tables = await pool.query(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema='public' ORDER BY table_name`

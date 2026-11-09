@@ -15,10 +15,15 @@ import { syncProgressionSafely } from "../progression/service"; // Achievements 
 
    Valuation, in one place because four screens depend on agreeing about it:
 
-     equity      = cash + market value of the open positions
-     return_pct  = (equity - starting_balance) / starting_balance * 100
+     equity        = cash + market value of the open positions
+     capital_base  = starting_balance, grown by any capital growth rewards
+     return_pct    = (equity - capital_base) / capital_base * 100
 
-   Measuring against starting_balance rather than against what was spent is the
+   A capital growth reward (src/rewards) adds cash and grows capital_base by
+   the same factor, so it never moves the return and never counts as profit.
+   Until a portfolio's first reward, capital_base is its starting_balance.
+
+   Measuring against the capital base rather than against what was spent is the
    whole point of giving every portfolio the same opening cash. Money left
    sitting in cash is part of the result: a portfolio that deployed a tenth of
    its funds into a stock that doubled is up 10%, not 100%.
@@ -40,20 +45,24 @@ export const POSITION_VALUES = `
 // must be passed through publicPortfolio before being shown to anyone else.
 export const valuePortfolio = (row: any) => {
   const startingBalance = parseFloat(row.starting_balance) || 0;
+  // Queries select COALESCE(p.capital_base, p.starting_balance) AS capital_base.
+  const capitalBase = parseFloat(row.capital_base) || startingBalance;
   const cash = parseFloat(row.cash) || 0;
   const positionsValue = parseFloat(row.positions_value) || 0;
   const equity = cash + positionsValue;
-  const returnPct =
-    startingBalance > 0 ? ((equity - startingBalance) / startingBalance) * 100 : 0;
+  const returnPct = capitalBase > 0 ? ((equity - capitalBase) / capitalBase) * 100 : 0;
 
   return {
     id: row.id,
     name: row.name,
     starting_balance: startingBalance,
+    /** starting_balance plus capital growth rewards; what the return is measured against. */
+    capital_base: capitalBase,
     cash,
     positions_value: positionsValue,
     equity,
-    profit: equity - startingBalance,
+    // Investment profit only: capital added by rewards is in capital_base.
+    profit: equity - capitalBase,
     return_pct: returnPct,
     holdings_count: row.holdings_count ?? 0,
     // What share of the book is still uninvested. A percentage, so unlike the
@@ -81,7 +90,7 @@ export const listPortfolios: RequestHandler = async (req, res, next) => {
   const userId = (req as any).user.id;
   try {
     const result = await pool.query(
-      `SELECT p.id, p.name, p.starting_balance, p.cash, p.created_at,
+      `SELECT p.id, p.name, p.starting_balance, COALESCE(p.capital_base, p.starting_balance) AS capital_base, p.cash, p.created_at,
               COALESCE(v.positions_value, 0) AS positions_value,
               COALESCE(v.holdings_count, 0)  AS holdings_count
        FROM portfolios p

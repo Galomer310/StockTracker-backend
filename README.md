@@ -171,6 +171,11 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | GET | `/players/:id/follow` | Whether you follow that player, and their public follower count. |
 | PUT / DELETE | `/players/:id/follow` | Follow or unfollow. One click, no approval; both are idempotent. You cannot follow yourself. |
 | GET | `/players/me/followers`, `/players/me/following` | Your own lists. Nobody else's lists can be read. |
+| POST | `/players/me/daily-rewards/check-in` | The app calls this when it opens. The first call on a calendar date (Israel time) counts the day: streak, daily XP, and a capital growth reward on milestone days. Repeats change nothing. Answers with the dashboard. |
+| GET | `/players/me/daily-rewards` | Streak, today's reward, next XP and capital milestones, pending capital rewards. |
+| POST | `/players/me/daily-rewards/acknowledge` | Today's reward notice has been shown. |
+| POST | `/players/me/daily-rewards/:rewardId/redeem` | `{ portfolio_id }`: apply one pending capital reward to one of your active portfolios. 409 `REWARD_ALREADY_REDEEMED`, `PORTFOLIO_NOT_ELIGIBLE`, `INVALID_VALUATION` (the reward stays pending). |
+| GET | `/players/me/daily-rewards/history` | Every login day (`DAILY_LOGIN_XP`) and every capital reward (`CAPITAL_BOOST_REWARD`) with its before/after figures. |
 
 XP, levels, titles and achievements live in `src/progression`. XP per level is
 not decided yet: the `level_thresholds` table ships empty, so every player is
