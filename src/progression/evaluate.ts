@@ -16,7 +16,7 @@
    with no change here.
    =========================================================================== */
 
-export type Dependency = "nicknames" | "follows" | "subscriptions" | "competitions";
+export type Dependency = "follows" | "subscriptions" | "competitions";
 
 export interface AchievementDef {
   id: string;
@@ -111,8 +111,8 @@ export const evaluate = (def: AchievementDef, ctx: EvaluationContext): Evaluatio
       return flag(true);
 
     case "nickname_chosen":
-      // The nickname column exists but nothing sets it yet.
-      return facts.nickname ? flag(true) : blocked("nicknames");
+      // Set from the Player Card (PATCH /players/me), under src/services/nickname.ts.
+      return flag(!!facts.nickname);
 
     case "profile_completed":
       // The basic profile is what the player can fill in today: first name and bio.

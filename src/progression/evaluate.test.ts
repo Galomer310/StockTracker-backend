@@ -97,7 +97,6 @@ describe("evaluate", () => {
     expect(evaluate(byId.market_scout, ctx()).blocked_by).toEqual(["follows"]);
     expect(evaluate(byId.from_fan_to_insider, ctx()).blocked_by).toEqual(["follows", "subscriptions"]);
     expect(evaluate(byId.the_full_experience, ctx()).blocked_by).toEqual(["subscriptions", "competitions"]);
-    expect(evaluate(byId.make_your_mark, ctx()).blocked_by).toEqual(["nicknames"]);
   });
 
   it("makes Ready, Set, Invest! wait for what its prerequisites wait for, with progress", () => {
@@ -105,8 +104,13 @@ describe("evaluate", () => {
     expect(evaluate(byId.ready_set_invest, ctx({ unlocked }))).toEqual({
       met: false,
       progress: { current: 2, target: 6 },
-      blocked_by: ["nicknames", "follows"],
+      blocked_by: ["follows"],
     });
+  });
+
+  it("awards Make Your Mark once a username is chosen", () => {
+    expect(evaluate(byId.make_your_mark, ctx())).toEqual({ met: false, progress: null, blocked_by: [] });
+    expect(evaluate(byId.make_your_mark, ctx({ facts: facts({ nickname: "dana_k" }) })).met).toBe(true);
   });
 
   it("starts working as soon as a system's facts are supplied", () => {

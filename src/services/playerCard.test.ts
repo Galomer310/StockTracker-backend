@@ -81,8 +81,15 @@ describe("buildPlayerCard", () => {
   it("passes identity through unchanged and stamps the model and time", () => {
     const me = { nickname: "growthhunter", first_name: "Roee", avatar_url: null, avatar_id: "warrior", bio: "Growth investor." };
     const card = buildPlayerCard(me, [], at);
-    expect(card.player).toEqual(me);
+    expect(card.player).toEqual({ ...me, nickname_next_change_at: null });
     expect(card.model).toBe("player_card_model_v1");
     expect(card.calculated_at).toBe("2026-10-16T12:00:00.000Z");
+  });
+
+  it("says when the username may next change: 30 days after the last change", () => {
+    const me = { nickname: "dana", nickname_changed_at: new Date("2026-10-01T09:00:00Z"), first_name: null, avatar_url: null, avatar_id: null, bio: "" };
+    expect(buildPlayerCard(me, [], at).player.nickname_next_change_at).toBe("2026-10-31T09:00:00.000Z");
+    const longAgo = { ...me, nickname_changed_at: new Date("2026-09-01T09:00:00Z") };
+    expect(buildPlayerCard(longAgo, [], at).player.nickname_next_change_at).toBeNull();
   });
 });

@@ -1940,8 +1940,7 @@ must not hard-code the reference image's sample values.
 - **Rankings and scoring.** How the "top 4" medals and achievements are
   ranked; XP amounts; level thresholds; the title bank. All deliberately
   deferred.
-- **Nickname rules.** Case sensitivity, allowed characters and length, and
-  whether and how often it can be changed ("subject to system rules").
+- **Nickname rules.** Decided 2026-11-09; see "Usernames" below.
 - **Lock for 9.4.** No minimum-portfolios condition is stated, unlike 9.3. Is
   that intended?
 - **Which return.** Part 3 says "return" without qualification; Part 1
@@ -2172,3 +2171,33 @@ page (`GET /social/leaderboard`, `/social/portfolios/:id` and its journal),
 and the follow lists (`GET /players/me/followers|following`). The avatar
 is public, like the name. Null means the player has not chosen one, and
 the client shows the initial instead.
+
+## Usernames (decided by Gal, 2026-11-09)
+
+The spec's nickname (3.2, 11): the player's primary identity, mandatory,
+unique, checked for availability as it is chosen. Gal approved these rules
+and added Hebrew:
+
+- 3 to 20 characters.
+- Hebrew letters (alef to tav with final forms, no niqqud), English
+  letters, digits, "_" and ".". No spaces, no other symbols or scripts
+  (which also shuts out look-alike letters such as Cyrillic "а").
+- At least one letter; "." never first, last or doubled. A leading "@" is
+  dropped, not refused.
+- Unique without regard to case ("Gal" = "gal"), shown exactly as typed.
+  Backed by a unique index on `lower(nickname)` and a length CHECK.
+- Reserved names cannot be taken, also when dotted or underscored: admin,
+  support, moderator, staff, official, the platform's names, and Hebrew
+  ones such as מנהל, תמיכה, צוות, מערכת (list in `src/services/nickname.ts`).
+- Changed at most once every 30 days; the first choice counts. Once chosen
+  it cannot be removed.
+- A username given up is held for its previous owner for 30 days
+  (`nickname_holds`), so nobody can take it at once and pose as them; the
+  owner may take it back meanwhile.
+- Existing players get no automatic username. The Player Card asks them to
+  choose one, and choosing it earns Make Your Mark (25 XP), which with it no
+  longer waits for anything.
+
+Not yet: showing the username in the feed, leaderboard and other lists
+(they still show the display name), @mentions, and a username step at
+registration.

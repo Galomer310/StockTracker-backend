@@ -43,10 +43,14 @@ import {
 import type { LevelProgress } from "../progression/levels";
 import type { TitleView } from "../progression/service";
 
+import { nextNicknameChangeAt } from "./nickname";
+
 export const PLAYER_CARD_MODEL = "player_card_model_v1";
 
 export interface PlayerRow {
   nickname: string | null;
+  /** When the username was last set; it may change once every 30 days. */
+  nickname_changed_at?: Date | null;
   first_name: string | null;
   avatar_url: string | null;
   /** A gallery avatar's id (src/services/playerProfile.ts), or null. */
@@ -87,7 +91,10 @@ export interface Award {
 export interface PlayerCard {
   model: string;
   calculated_at: string;
-  player: PlayerRow;
+  player: Omit<PlayerRow, "nickname_changed_at"> & {
+    /** When the username may next change; null when it may change now (or was never chosen). */
+    nickname_next_change_at: string | null;
+  };
   progression: CardValue<Progression>;
   social: { followers: number; subscribers: number };
   stats: {
@@ -139,6 +146,7 @@ export const buildPlayerCard = (
     calculated_at: calculatedAt.toISOString(),
     player: {
       nickname: player.nickname,
+      nickname_next_change_at: nextNicknameChangeAt(player.nickname_changed_at ?? null, calculatedAt)?.toISOString() ?? null,
       first_name: player.first_name,
       avatar_url: player.avatar_url,
       avatar_id: player.avatar_id,
