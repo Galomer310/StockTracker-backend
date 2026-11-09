@@ -616,3 +616,161 @@ CREATE TABLE IF NOT EXISTS trade_followups (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_trade_followups_trade ON trade_followups(trade_note_id, created_at);
+
+-- ---------------------------------------------------------------------------
+-- Professional achievements and medals, stage 2 (spec v1.0, 2026-11-09)
+-- ---------------------------------------------------------------------------
+-- Evaluated from the portfolio history (src/professional). Catalogs are
+-- seeded insert-only from src/professional/catalog.json by migrate.js.
+
+-- The six official categories (spec 4). A category without enabled
+-- achievements yet is shown as "coming soon".
+CREATE TABLE IF NOT EXISTS professional_categories (
+  id          TEXT PRIMARY KEY,
+  name_en     TEXT NOT NULL,
+  name_he     TEXT NOT NULL,
+  status      TEXT NOT NULL CHECK (status IN ('active', 'coming_soon')),
+  sort_order  INTEGER NOT NULL
+);
+
+-- Achievement types. A record names its period (or streak length or
+-- threshold); the names are templates filled per record.
+CREATE TABLE IF NOT EXISTS professional_achievements (
+  id                    TEXT PRIMARY KEY,
+  category_id           TEXT NOT NULL REFERENCES professional_categories(id),
+  title_en              TEXT NOT NULL,
+  title_he              TEXT NOT NULL,
+  description_en        TEXT NOT NULL,
+  description_he        TEXT NOT NULL,
+  scope                 TEXT NOT NULL CHECK (scope IN ('portfolio', 'player')),
+  measurement_period    TEXT NOT NULL,
+  xp_reward_key         TEXT NOT NULL,
+  contributes_to_medal  TEXT,
+  rarity                TEXT NOT NULL,
+  is_enabled            BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order            INTEGER NOT NULL
+);
+
+-- Earned records: one per portfolio, achievement and period. Never deleted.
+-- portfolio_id has no foreign key on purpose: the record outlives the
+-- portfolio (spec: preserve historical achievements).
+CREATE TABLE IF NOT EXISTS player_professional_achievements (
+  id                     SERIAL PRIMARY KEY,
+  user_id                INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  achievement_id         TEXT NOT NULL REFERENCES professional_achievements(id),
+  portfolio_id           INTEGER,
+  portfolio_name         TEXT,
+  period_id              TEXT NOT NULL,
+  earned_on              DATE NOT NULL,
+  qualifying_value       NUMERIC(24,12),
+  benchmark_value        NUMERIC(24,12),
+  outperformance         NUMERIC(24,12),
+  details                JSONB NOT NULL DEFAULT '{}',
+  xp_awarded             INTEGER NOT NULL DEFAULT 0,
+  reward_transaction_id  INTEGER REFERENCES xp_transactions(id) ON DELETE SET NULL,
+  recorded_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  notified_at            TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_pro_record_portfolio
+  ON player_professional_achievements(achievement_id, portfolio_id, period_id) WHERE portfolio_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_pro_record_player
+  ON player_professional_achievements(user_id, achievement_id, period_id) WHERE portfolio_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_pro_records_user ON player_professional_achievements(user_id, earned_on);
+
+-- The latest evaluation of each portfolio: the evidence behind the records
+-- (period results, streaks) and how far it is final.
+CREATE TABLE IF NOT EXISTS professional_evaluations (
+  portfolio_id   INTEGER PRIMARY KEY REFERENCES portfolios(id) ON DELETE CASCADE,
+  final_through  DATE,
+  evaluation     JSONB NOT NULL,
+  evaluated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- The 30-day return qualification windows (spec 16), rebuilt each run.
+CREATE TABLE IF NOT EXISTS return_qualification_windows (
+  portfolio_id   INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+  threshold      NUMERIC(6,3) NOT NULL,
+  start_date     DATE NOT NULL,
+  day30          DATE NOT NULL,
+  grace_until    DATE NOT NULL,
+  best_streak    INTEGER NOT NULL,
+  seven_met      BOOLEAN NOT NULL,
+  day30_result   TEXT,
+  status         TEXT NOT NULL CHECK (status IN ('in_progress', 'qualified', 'failed')),
+  closed_on      DATE,
+  PRIMARY KEY (portfolio_id, threshold, start_date)
+);
+
+-- Medal tracks (spec 34), separate from the achievement catalog.
+CREATE TABLE IF NOT EXISTS medals (
+  id                TEXT PRIMARY KEY,
+  track             TEXT NOT NULL,
+  title_en          TEXT NOT NULL,
+  title_he          TEXT NOT NULL,
+  description_en    TEXT NOT NULL,
+  description_he    TEXT NOT NULL,
+  icon              TEXT NOT NULL,
+  progression_type  TEXT NOT NULL,
+  is_historical     BOOLEAN NOT NULL DEFAULT FALSE,
+  is_special        BOOLEAN NOT NULL DEFAULT FALSE,
+  is_enabled        BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order        INTEGER NOT NULL
+);
+
+-- A player's medals: one per track, or one per year for annual medals
+-- (period_key). Tiers only ever go up.
+CREATE TABLE IF NOT EXISTS player_medals (
+  user_id                INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  medal_id               TEXT NOT NULL REFERENCES medals(id),
+  period_key             TEXT NOT NULL DEFAULT '',
+  current_tier           INTEGER NOT NULL CHECK (current_tier BETWEEN 1 AND 5),
+  highest_tier           INTEGER NOT NULL CHECK (highest_tier BETWEEN 1 AND 5),
+  decoration             INTEGER NOT NULL DEFAULT 0,
+  relevant_portfolio_id  INTEGER,
+  relevant_period        TEXT,
+  qualifying_value       NUMERIC(24,12),
+  highest_streak         INTEGER,
+  current_streak         INTEGER,
+  subtitle               TEXT,
+  as_of                  DATE NOT NULL,
+  first_unlocked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_upgraded_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, medal_id, period_key)
+);
+
+-- Every unlock and upgrade, for the medal's history and the notification.
+CREATE TABLE IF NOT EXISTS player_medal_events (
+  id           SERIAL PRIMARY KEY,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  medal_id     TEXT NOT NULL REFERENCES medals(id),
+  period_key   TEXT NOT NULL DEFAULT '',
+  tier         INTEGER NOT NULL,
+  decoration   INTEGER NOT NULL DEFAULT 0,
+  happened_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  notified_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_medal_events_user ON player_medal_events(user_id, happened_at);
+
+-- Which medals the Player Card shows (spec 6.2). Automatic by default.
+CREATE TABLE IF NOT EXISTS player_medal_preferences (
+  user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  automatic   BOOLEAN NOT NULL DEFAULT TRUE,
+  selected    JSONB NOT NULL DEFAULT '[]',
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- XP per professional achievement (spec 32): NOT decided yet, so every
+-- amount is null and nothing is granted. Once Gal sets amounts here, the
+-- next evaluation grants them to every earlier record, once each
+-- (decided 2026-11-09). Quarter amounts must rise from Q1 to Q4.
+INSERT INTO progression_settings (key, value) VALUES
+  ('professional_xp', '{
+    "btm_month": null, "btm_month_streak": null,
+    "btm_quarter_q1": null, "btm_quarter_q2": null, "btm_quarter_q3": null, "btm_quarter_q4": null,
+    "btm_quarter_combo": null, "btm_unbroken_four": null,
+    "btm_year": null, "btm_year_streak": null,
+    "portfolio_return_10": null, "portfolio_return_20": null, "portfolio_return_50": null, "portfolio_return_75": null,
+    "portfolio_return_100": null, "portfolio_return_200": null, "portfolio_return_300": null,
+    "green_month": null, "green_streak": null
+  }')
+ON CONFLICT (key) DO NOTHING;

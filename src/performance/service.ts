@@ -306,7 +306,16 @@ export const runValuationJob = async (now: Date = new Date()) => {
         `${rebuilt.length} portfolios rebuilt, ${inconsistent.length} inconsistent` +
         (volumes.length ? `, volume filled for ${volumes.filter((v) => !v.error).length}/${volumes.length} held symbols` : "")
     );
-    return { prices, volumes, rebuilt };
+    // Professional achievements are measured on the history just rebuilt.
+    // Loaded here rather than at the top: src/professional reads this module.
+    const { runProfessionalEvaluation } = await import("../professional/service");
+    let professional = null;
+    try {
+      professional = await runProfessionalEvaluation();
+    } catch (error) {
+      console.error("[professional] evaluation failed:", error);
+    }
+    return { prices, volumes, rebuilt, professional };
   } finally {
     running = false;
   }

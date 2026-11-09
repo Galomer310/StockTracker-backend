@@ -21,6 +21,12 @@ import {
   postCheckIn,
   postRedeem,
 } from "../controllers/dailyRewardsController";
+import {
+  getMyProfessional,
+  getMyProfessionalNotifications,
+  postMyProfessionalAcknowledge,
+  putMyMedalDisplay,
+} from "../controllers/professionalController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { socialLimiter } from "../middleware/rateLimiter";       // Per-user limit
 
@@ -58,6 +64,12 @@ router.post("/me/daily-rewards/check-in", postCheckIn);
 router.post("/me/daily-rewards/acknowledge", postAcknowledge);
 router.get("/me/daily-rewards/history", getHistory);
 router.post("/me/daily-rewards/:rewardId/redeem", postRedeem);
+
+// Professional achievements and medals (stage 2)
+router.get("/me/professional", getMyProfessional);
+router.get("/me/professional/notifications", getMyProfessionalNotifications);
+router.post("/me/professional/acknowledge", postMyProfessionalAcknowledge);
+router.put("/me/medals/display", putMyMedalDisplay);
 
 router.get("/me/following", getMyFollowing);
 router.get("/me/followers", getMyFollowers);

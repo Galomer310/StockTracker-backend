@@ -183,6 +183,10 @@ header. Routes acting on a portfolio read it from an `X-Portfolio-Id` header.
 | POST | `/players/me/daily-rewards/acknowledge` | Today's reward notice has been shown. |
 | POST | `/players/me/daily-rewards/:rewardId/redeem` | `{ portfolio_id }`: apply one pending capital reward to one of your active portfolios. 409 `REWARD_ALREADY_REDEEMED`, `PORTFOLIO_NOT_ELIGIBLE`, `INVALID_VALUATION` (the reward stays pending). |
 | GET | `/players/me/daily-rewards/history` | Every login day (`DAILY_LOGIN_XP`) and every capital reward (`CAPITAL_BOOST_REWARD`) with its before/after figures. |
+| GET | `/players/me/professional` | Professional achievements and medals: categories, every earned record with its portfolio, period and evidence, the medals with tiers and history, 30-day windows and streaks in progress, and which medals the card shows. |
+| PUT | `/players/me/medals/display` | `{ automatic: true }` or `{ automatic: false, selected: [{ medal_id, period_key }] }` (owned, at most four, in order): which medals the Player Card shows. |
+| GET | `/players/me/professional/notifications` | Unseen professional unlocks and medal upgrades (most prestigious first). |
+| POST | `/players/me/professional/acknowledge` | `{ achievement_ids, medal_event_ids }`: mark those notices seen. |
 
 XP, levels, titles and achievements live in `src/progression`. XP per level is
 not decided yet: the `level_thresholds` table ships empty, so every player is
