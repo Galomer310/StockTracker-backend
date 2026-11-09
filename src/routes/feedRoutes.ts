@@ -1,5 +1,6 @@
 import express from "express";                 // Import express
-import { getFeed, setReaction, addComment, deleteComment } from "../controllers/feedController";
+import { getFeed, setReaction, addComment,
+  addFollowup, deleteComment } from "../controllers/feedController";
 import { authenticateUser } from "../middleware/authMiddleware"; // Authentication middleware
 import { feedLimiter } from "../middleware/rateLimiter";         // Per-user limit
 
@@ -19,6 +20,9 @@ router.post("/:id/reactions", setReaction);
 
 // POST /feed/:id/comments - reply to a post
 router.post("/:id/comments", addComment);
+
+// POST /feed/:id/followups - the author adds a dated note to a trade's rationale
+router.post("/:id/followups", addFollowup);
 
 // DELETE /feed/comments/:commentId - remove your own reply.
 //

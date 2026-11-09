@@ -588,3 +588,18 @@ CREATE TABLE IF NOT EXISTS portfolio_history_status (
 -- (src/testTools/service.ts). A tester can use the test tools, and is hidden
 -- from other players' leaderboard and feed.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_tester BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- ---------------------------------------------------------------------------
+-- Follow-ups to a trade's rationale (spec Part 1, Module 2)
+-- ---------------------------------------------------------------------------
+-- A published rationale is never rewritten. To add to it later the player
+-- writes a dated follow-up, shown under the original in the activity and
+-- the feed. Only the trade's owner can add one; none can be edited.
+CREATE TABLE IF NOT EXISTS trade_followups (
+  id             SERIAL PRIMARY KEY,
+  trade_note_id  INTEGER NOT NULL REFERENCES trade_notes(id) ON DELETE CASCADE,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body           TEXT NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_trade_followups_trade ON trade_followups(trade_note_id, created_at);
