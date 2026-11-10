@@ -2647,3 +2647,31 @@ holding that cannot be classified for lack of data is reported apart as
   How to read it, as the Investment Profile and Exposure modules do.
 - Still open: Category / Style on the card (player-chosen or derived - Gal's
   ruling).
+
+## Professional achievement XP (approved by Gal, 2026-11-09)
+
+Per portfolio and per record (rare achievements once per player):
+
+| Achievement | XP |
+|---|---|
+| Beat the Market month / 3-month streak milestone | 100 / 250 |
+| Beat the Market Q1 / Q2 / Q3 / Q4 | 300 / 350 / 400 / 450 |
+| Quarter Combo (II-V) / Unbroken Four | 500 / 1,500 |
+| Beat the Market year / consecutive winning years | 1,500 / 2,500 |
+| Portfolio Return 10 / 20 / 50 / 75 % | 150 / 300 / 600 / 900 |
+| Portfolio Return 100 / 200 / 300 % | 1,500 / 2,500 / 4,000 |
+| Green Month / Green Months streak milestone | 50 / 150 |
+| Calm Under Fire / Back from the Edge / Capital Protector / Market Resilience | 200 / 300 / 300 / 300 |
+| Phoenix Rise / Steady Hands / Protected Upside | 600 / 1,200 / 1,500 |
+| Three / Five Portfolios Above the Market / Triple Alpha | 800 / 2,000 / 3,000 |
+| The First to Beat the Market | 2,500 |
+| First to Level 25 / 50 / 100 | 1,000 / 2,500 / 5,000 |
+| Portfolio Master / Five-Star Investor | 5,000 / 5,000 |
+
+Set by migration only where the amount was still null (an amount already
+set stays). Granted retroactively on the next evaluation, once per record;
+medal upgrades carry no XP. Context when approved: game achievements give
+25-500 (5,300 in all), daily login about 23,000 a year, level 50 needs
+60,025 XP (provisional curve 25 x (L-1)^2). Estimated: an outstanding player
+with three portfolios earns about 35,000-40,000 professional XP in a year;
+a typical one-portfolio player 4,000-6,000.

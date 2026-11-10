@@ -862,3 +862,22 @@ SELECT * FROM (VALUES
   ('symbol', 'SOFI', NULL, NULL, TRUE, 'Fintech (digital bank)')
 ) AS seed(kind, symbol, sic_from, sic_to, tech, label)
 WHERE NOT EXISTS (SELECT 1 FROM tech_classification);
+
+-- Professional achievement XP, APPROVED BY GAL 2026-11-09. Fills only the
+-- amounts still undecided (null): an amount already set stays as it is.
+-- The next evaluation grants these to every earlier record, once each.
+UPDATE progression_settings SET value = '{
+    "btm_month": 100, "btm_month_streak": 250,
+    "btm_quarter_q1": 300, "btm_quarter_q2": 350, "btm_quarter_q3": 400, "btm_quarter_q4": 450,
+    "btm_quarter_combo": 500, "btm_unbroken_four": 1500,
+    "btm_year": 1500, "btm_year_streak": 2500,
+    "portfolio_return_10": 150, "portfolio_return_20": 300, "portfolio_return_50": 600, "portfolio_return_75": 900,
+    "portfolio_return_100": 1500, "portfolio_return_200": 2500, "portfolio_return_300": 4000,
+    "green_month": 50, "green_streak": 150,
+    "calm_under_fire": 200, "back_from_edge": 300, "capital_protector": 300, "market_resilience": 300,
+    "phoenix_rise": 600, "steady_hands": 1200, "protected_upside": 1500,
+    "three_portfolios_above_market": 800, "five_portfolios_above_market": 2000, "triple_alpha": 3000,
+    "first_to_beat_market": 2500, "first_to_level_25": 1000, "first_to_level_50": 2500, "first_to_level_100": 5000,
+    "portfolio_master": 5000, "five_star_investor": 5000
+  }'::jsonb || jsonb_strip_nulls(value)
+WHERE key = 'professional_xp';
