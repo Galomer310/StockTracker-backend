@@ -375,6 +375,18 @@ export const runProfessionalEvaluation = async () => {
     records += rare.records;
     upgrades += rare.medals;
     const xpUsers = await grantProfessionalXp();
+    // XP just granted can reach a pioneer level (First to Level 25 / 50 /
+    // 100): look once more, so it lands in this run rather than the next.
+    if (xpUsers.size > 0) {
+      try {
+        const again = await evaluateRare();
+        records += again.records;
+        upgrades += again.medals;
+        if (again.records > 0) for (const u of await grantProfessionalXp()) xpUsers.add(u);
+      } catch (error) {
+        console.error("[professional] rare achievements (second pass) failed:", error);
+      }
+    }
     for (const u of xpUsers) await syncProgressionSafely(u);
     console.log(`[professional] ${records} new achievement record(s), ${upgrades} medal unlock(s)/upgrade(s), XP granted to ${xpUsers.size} player(s)`);
     return { records, upgrades, xp_players: xpUsers.size };
